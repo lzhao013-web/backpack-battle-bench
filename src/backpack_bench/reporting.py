@@ -46,6 +46,41 @@ def _token_counts(usage: dict[str, Any]) -> tuple[int, int, int, int]:
     return input_tokens, output_tokens, reasoning, cached
 
 
+def _validation(row: dict[str, Any]) -> dict[str, Any]:
+    value = row.get("validation_json")
+    if not value:
+        return {}
+    if isinstance(value, str):
+        value = json.loads(value)
+    return cast(dict[str, Any], value) if isinstance(value, dict) else {}
+
+
+def _trial_report(row: dict[str, Any]) -> dict[str, Any]:
+    input_tokens, output_tokens, reasoning_tokens, cached_tokens = _token_counts(_usage(row))
+    has_result = row.get("result_job_id") is not None
+    return {
+        "trial": int(row["trial"]),
+        "job_id": str(row["job_id"]),
+        "status": str(row.get("status") or "pending"),
+        "valid": bool(row.get("valid")) if has_result else False,
+        "actual_attack": int(row.get("actual_attack") or 0),
+        "oracle_attack": _oracle_attack(row),
+        "ratio": float(row.get("ratio") or 0.0),
+        "error_type": _error_name(row),
+        "finish_reason": row.get("finish_reason"),
+        "attempt_count": int(row.get("attempt_count") or 0),
+        "latency_ms": (float(row["latency_ms"]) if row.get("latency_ms") is not None else None),
+        "input_tokens": input_tokens,
+        "output_tokens": output_tokens,
+        "reasoning_tokens": reasoning_tokens,
+        "cached_tokens": cached_tokens,
+        "estimated_cost": (
+            float(row["estimated_cost"]) if row.get("estimated_cost") is not None else None
+        ),
+        "validation": _validation(row),
+    }
+
+
 def _oracle_attack(row: dict[str, Any]) -> int:
     return int(row.get("oracle_attack") or row.get("exact_oracle_attack") or 0)
 
@@ -167,6 +202,7 @@ def build_run_report(storage: Storage, run_id: str) -> dict[str, Any]:
                     "error_counts": dict(
                         sorted(Counter(_error_name(row) for row in scenario_rows).items())
                     ),
+                    "trial_results": [_trial_report(row) for row in scenario_rows],
                 }
             )
         aggregate = _aggregate_rows(profile_rows)
@@ -340,42 +376,256 @@ def csv_report(value: dict[str, Any]) -> str:
     return output.getvalue()
 
 
-def html_report(value: dict[str, Any]) -> str:
-    profiles = value.get("profiles", value.get("entries", []))
+def _html_text(value: Any) -> str:
+    return html.escape(str(value))
+
+
+def _html_percent(value: Any, digits: int = 1) -> str:
+    return "—" if value is None else f"{float(value):.{digits}%}"
+
+
+def _html_number(value: Any, digits: int = 1) -> str:
+    return "—" if value is None else f"{float(value):,.{digits}f}"
+
+
+def _html_cost(value: Any) -> str:
+    return "—" if value is None else f"${float(value):,.6f}"
+
+
+def _html_errors(value: Any) -> str:
+    if not isinstance(value, dict) or not value:
+        return '<span class="muted">—</span>'
+    return "".join(
+        f'<span class="error">{_html_text(name)} × {int(count)}</span>'
+        for name, count in sorted(value.items())
+    )
+
+
+def _html_trial_rows(trials: Any) -> str:
+    if not isinstance(trials, list) or not trials:
+        return '<tr><td colspan="12" class="muted">没有 trial 明细</td></tr>'
     rows = []
-    for index, profile in enumerate(profiles, 1):
-        latency = (
-            f"{profile['latency_p50_ms']:.1f}" if profile["latency_p50_ms"] is not None else "—"
+    for trial in trials:
+        validation = trial.get("validation")
+        validation_html = '<span class="muted">—</span>'
+        if isinstance(validation, dict) and validation:
+            payload = html.escape(json.dumps(validation, ensure_ascii=False, indent=2))
+            validation_html = (
+                f'<details class="validation"><summary>查看</summary><pre>{payload}</pre></details>'
+            )
+        valid = bool(trial.get("valid"))
+        token_text = " / ".join(
+            f"{int(trial.get(name) or 0):,}"
+            for name in ("input_tokens", "output_tokens", "reasoning_tokens", "cached_tokens")
         )
         rows.append(
             "<tr>"
-            f"<td>{profile.get('rank', index)}</td>"
-            f"<td>{html.escape(str(profile['profile_id']))}</td>"
-            f"<td>{html.escape(str(profile['model']))}</td>"
-            f"<td>{profile['overall_score']:.3f}</td>"
-            f"<td>{profile['valid_rate']:.1%}</td>"
-            f"<td>{profile['optimal_hit_rate']:.1%}</td>"
-            f"<td>{profile['retry_rate']:.1%}</td>"
-            f"<td>{profile['truncation_rate']:.1%}</td>"
-            f"<td>{latency}</td>"
+            f"<td>{int(trial.get('trial') or 0)}</td>"
+            f'<td><span class="state {"ok" if valid else "bad"}">'
+            f"{'合法' if valid else '失败'}</span></td>"
+            f"<td>{int(trial.get('actual_attack') or 0)} / "
+            f"{int(trial.get('oracle_attack') or 0)}</td>"
+            f"<td>{_html_percent(trial.get('ratio'))}</td>"
+            f"<td>{_html_text(trial.get('error_type') or '—')}</td>"
+            f"<td>{int(trial.get('attempt_count') or 0)}</td>"
+            f"<td>{_html_number(trial.get('latency_ms'))}</td>"
+            f'<td class="tokens">{token_text}</td>'
+            f"<td>{_html_text(trial.get('finish_reason') or '—')}</td>"
+            f"<td>{_html_cost(trial.get('estimated_cost'))}</td>"
+            f"<td><code>{_html_text(trial.get('job_id') or '—')}</code></td>"
+            f"<td>{validation_html}</td>"
             "</tr>"
         )
-    title = html.escape(str(value.get("run_id", value.get("suite_id", "report"))))
+    return "".join(rows)
+
+
+def _html_scenarios(scenarios: Any) -> str:
+    if not isinstance(scenarios, list) or not scenarios:
+        return '<p class="muted">这个视图没有单题明细。</p>'
+    blocks = []
+    for scenario in scenarios:
+        tags = "".join(
+            f'<span class="tag">{_html_text(tag)}</span>' for tag in scenario.get("tags", [])
+        )
+        blocks.append(
+            '<details class="scenario" open><summary>'
+            f"<span><strong>{_html_text(scenario.get('title'))}</strong>"
+            f"<small>{_html_text(scenario.get('scenario_id'))}</small></span>"
+            f"<span>得分 {_html_percent(scenario.get('ratio_mean'))}</span>"
+            f"<span>平均攻击 {_html_number(scenario.get('attack_mean'))} / "
+            f"{int(scenario.get('oracle_attack') or 0)}</span>"
+            f"<span>合法 {_html_percent(scenario.get('valid_rate'))}</span>"
+            "</summary>"
+            '<div class="scenario-stats">'
+            f"<span>难度 <b>{_html_text(scenario.get('difficulty'))}</b></span>"
+            f"<span>Trials <b>{int(scenario.get('trials') or 0)}</b></span>"
+            f"<span>最好 / 最差 <b>{int(scenario.get('attack_best') or 0)} / "
+            f"{int(scenario.get('attack_worst') or 0)}</b></span>"
+            f"<span>标准差 <b>{_html_number(scenario.get('attack_stddev'))}</b></span>"
+            f"<span>最优率 <b>{_html_percent(scenario.get('optimal_hit_rate'))}</b></span>"
+            f"<span>权重 <b>{_html_number(scenario.get('weight'), 2)}</b></span>"
+            f"<span>错误 {_html_errors(scenario.get('error_counts'))}</span>"
+            "</div>"
+            f'<div class="tags">{tags}</div>'
+            '<div class="table-wrap"><table class="trial-table"><thead><tr>'
+            "<th>Trial</th><th>结果</th><th>攻击 / Oracle</th><th>比例</th><th>错误</th>"
+            "<th>尝试</th><th>延迟 ms</th><th>Token 入/出/推理/缓存</th><th>结束原因</th>"
+            "<th>成本</th><th>Job ID</th><th>验证明细</th>"
+            f"</tr></thead><tbody>{_html_trial_rows(scenario.get('trial_results'))}"
+            "</tbody></table></div></details>"
+        )
+    return "".join(blocks)
+
+
+def html_report(value: dict[str, Any]) -> str:
+    profiles = value.get("profiles", value.get("entries", []))
+    profiles = profiles if isinstance(profiles, list) else []
+    title = _html_text(value.get("run_id", value.get("suite_id", "report")))
+    metadata = [
+        ("Run", value.get("run_id")),
+        ("Plan", value.get("plan_id")),
+        ("Suite", value.get("suite_id")),
+        ("状态", value.get("status")),
+        ("开始", value.get("started_at")),
+        ("完成", value.get("completed_at")),
+        ("分组", value.get("group_by")),
+    ]
+    metadata_html = "".join(
+        f"<div><span>{_html_text(label)}</span><strong>{_html_text(item)}</strong></div>"
+        for label, item in metadata
+        if item is not None
+    )
+    overview_rows = []
+    profile_sections = []
+    for index, profile in enumerate(profiles, 1):
+        display = profile.get("display_name") or profile.get("profile_id") or f"profile-{index}"
+        overview_rows.append(
+            "<tr>"
+            f"<td>{profile.get('rank', index)}</td>"
+            f'<td><a href="#profile-{index}">{_html_text(display)}</a>'
+            f"<small>{_html_text(profile.get('profile_id', ''))}</small></td>"
+            f"<td>{_html_text(profile.get('model', '—'))}</td>"
+            f"<td>{_html_number(profile.get('overall_score'), 3)}</td>"
+            f"<td>{_html_percent(profile.get('valid_rate'))}</td>"
+            f"<td>{_html_percent(profile.get('optimal_hit_rate'))}</td>"
+            f"<td>{_html_percent(profile.get('retry_rate'))}</td>"
+            f"<td>{_html_percent(profile.get('truncation_rate'))}</td>"
+            f"<td>{_html_number(profile.get('latency_p50_ms'))}</td>"
+            f"<td>{_html_number(profile.get('latency_p95_ms'))}</td>"
+            f"<td>{_html_cost(profile.get('estimated_cost'))}</td>"
+            "</tr>"
+        )
+        total_tokens = int(profile.get("input_tokens") or 0) + int(
+            profile.get("output_tokens") or 0
+        )
+        metrics = (
+            ("总分", _html_number(profile.get("overall_score"), 3)),
+            ("合法率", _html_percent(profile.get("valid_rate"))),
+            ("最优命中率", _html_percent(profile.get("optimal_hit_rate"))),
+            ("Jobs", f"{int(profile.get('jobs') or 0):,}"),
+            ("平均攻击", _html_number(profile.get("attack_mean"))),
+            (
+                "最好 / 最差",
+                f"{int(profile.get('attack_best') or 0)} / {int(profile.get('attack_worst') or 0)}",
+            ),
+            ("攻击标准差", _html_number(profile.get("attack_stddev"))),
+            ("延迟 P50", f"{_html_number(profile.get('latency_p50_ms'))} ms"),
+            ("延迟 P95", f"{_html_number(profile.get('latency_p95_ms'))} ms"),
+            ("总 Token", f"{total_tokens:,}"),
+            ("重试率", _html_percent(profile.get("retry_rate"))),
+            ("截断率", _html_percent(profile.get("truncation_rate"))),
+            ("估算成本", _html_cost(profile.get("estimated_cost"))),
+        )
+        metrics_html = "".join(
+            f"<div><span>{_html_text(label)}</span><strong>{result}</strong></div>"
+            for label, result in metrics
+        )
+        identity = " · ".join(
+            _html_text(item)
+            for item in (
+                profile.get("profile_id"),
+                profile.get("model"),
+                profile.get("protocol"),
+                f"thinking={profile.get('thinking_effort')}"
+                if profile.get("thinking_effort") is not None
+                else None,
+            )
+            if item is not None
+        )
+        token_line = (
+            f"输入 {int(profile.get('input_tokens') or 0):,} · "
+            f"输出 {int(profile.get('output_tokens') or 0):,} · "
+            f"推理 {int(profile.get('reasoning_tokens') or 0):,} · "
+            f"缓存 {int(profile.get('cached_tokens') or 0):,}"
+        )
+        profile_sections.append(
+            f'<section class="profile" id="profile-{index}"><h2>{_html_text(display)}</h2>'
+            f'<p class="identity">{identity}</p><div class="metrics">{metrics_html}</div>'
+            f'<p class="token-line">Token：{token_line}</p>'
+            f"<p><b>错误分布：</b>{_html_errors(profile.get('error_counts'))}</p>"
+            f"<h3>单题与 Trial 明细</h3>{_html_scenarios(profile.get('scenarios'))}</section>"
+        )
+
     style = """
-body { font-family: system-ui; margin: 2rem; background: #f7f7f8; color: #222 }
-table { border-collapse: collapse; width: 100%; background: white }
-th, td { border: 1px solid #ddd; padding: .55rem; text-align: right }
-th:nth-child(2), td:nth-child(2), th:nth-child(3), td:nth-child(3) { text-align: left }
-th { background: #222; color: white }
+:root { --bg:#f4f6fa; --card:#fff; --ink:#172033; --muted:#697386; --line:#dce2eb;
+  --brand:#3157d5; --good:#177245; --bad:#b42318; --soft:#eef2ff }
+* { box-sizing:border-box } html { scroll-behavior:smooth }
+body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.55 system-ui,sans-serif }
+header { padding:2rem max(1.5rem,calc((100vw - 1500px)/2)); color:white;
+  background:linear-gradient(120deg,#17213a,#3157d5) }
+header h1,header p { margin:.15rem 0 } main { max-width:1500px; margin:auto; padding:1.4rem }
+a { color:var(--brand); text-decoration:none } a:hover { text-decoration:underline }
+.metadata,.metrics,.scenario-stats { display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(145px,1fr)); gap:.7rem }
+.metadata div,.metrics div { padding:.7rem .85rem; background:var(--card);
+  border:1px solid var(--line); border-radius:9px }
+.metadata span,.metrics span { display:block; color:var(--muted); font-size:.78rem }
+.metadata strong { overflow-wrap:anywhere }.metrics strong { font-size:1.08rem }
+.profile { margin:1.2rem 0; padding:1.1rem; background:var(--card);
+  border:1px solid var(--line); border-radius:13px }
+.profile h2 { margin:.1rem 0 }.identity,.token-line,.muted,small { color:var(--muted) }
+.table-wrap { width:100%; overflow:auto; border:1px solid var(--line); border-radius:8px }
+table { border-collapse:collapse; width:100%; background:white }
+th,td { padding:.52rem .62rem; border-bottom:1px solid var(--line); text-align:right;
+  white-space:nowrap; vertical-align:top }
+th { background:#222d42; color:white; font-size:.78rem }
+td:first-child,th:first-child { text-align:left }
+td small,summary small { display:block }.overview { margin-top:1rem }
+.scenario { margin:.7rem 0; border:1px solid var(--line); border-radius:9px; overflow:hidden }
+.scenario>summary { cursor:pointer; padding:.75rem .9rem; display:flex; flex-wrap:wrap;
+  justify-content:space-between; gap:.7rem; background:#f8faff }
+.scenario-stats { padding:.7rem .9rem }.scenario-stats>span { color:var(--muted) }
+.scenario-stats b { color:var(--ink) }.tags { padding:0 .8rem .6rem }
+.tag,.error { display:inline-block; margin:.1rem; padding:.15rem .48rem;
+  border-radius:999px; background:var(--soft) }
+.error { color:var(--bad); background:#fff0ee }
+.state { padding:.12rem .42rem; border-radius:999px; font-weight:600 }
+.state.ok { color:var(--good); background:#eaf7ef }
+.state.bad { color:var(--bad); background:#fff0ee }
+.tokens { font-variant-numeric:tabular-nums }
+.validation summary { cursor:pointer; color:var(--brand) }
+pre { max-width:620px; max-height:420px; overflow:auto; padding:.7rem; background:#111827;
+  color:#dbe5f4; border-radius:7px; text-align:left; white-space:pre }
+code { font-size:.78rem }
+footer { max-width:1500px; margin:0 auto 2rem; padding:0 1.4rem; color:var(--muted) }
+@media(max-width:700px) { main { padding:.7rem }.profile { padding:.7rem }
+  .metadata,.metrics { grid-template-columns:1fr 1fr } }
 """
-    header = (
-        "<tr><th>Rank</th><th>Profile</th><th>Model</th><th>Score</th>"
-        "<th>Valid</th><th>Optimal</th><th>Retry</th><th>Trunc</th><th>P50 ms</th></tr>"
+    overview = (
+        '<section class="profile overview"><h2>模型总览</h2><div class="table-wrap"><table>'
+        "<thead><tr><th>Rank</th><th>Profile</th><th>Model</th><th>总分</th><th>合法率</th>"
+        "<th>最优率</th><th>重试率</th><th>截断率</th><th>P50 ms</th><th>P95 ms</th>"
+        f"<th>成本</th></tr></thead><tbody>{''.join(overview_rows)}</tbody></table></div></section>"
+        if overview_rows
+        else '<section class="profile muted">没有可展示的模型结果。</section>'
     )
     return (
         '<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">'
-        f"<title>{title}</title><style>{style}</style></head><body><h1>{title}</h1>"
-        f"<table><thead>{header}</thead><tbody>{''.join(rows)}</tbody></table>"
+        '<meta name="viewport" content="width=device-width,initial-scale=1">'
+        f"<title>{title} · Backpack Battle Bench</title><style>{style}</style></head><body>"
+        f"<header><h1>Backpack Battle Bench</h1><p>{title}</p></header><main>"
+        f'<section class="metadata">{metadata_html}</section>{overview}{"".join(profile_sections)}'
+        "</main><footer>静态报告由 bbbench 生成；验证明细来自 SQLite 中的脱敏结果。</footer>"
         "</body></html>"
     )
 

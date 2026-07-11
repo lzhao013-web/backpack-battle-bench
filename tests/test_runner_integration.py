@@ -197,6 +197,17 @@ def test_24_job_matrix_retry_and_resume(tmp_path: Path, monkeypatch: pytest.Monk
         == 1
     )
     assert sum(profile["output_tokens"] for profile in report["profiles"]) > 24 * 20
+    assert all(
+        len(scenario["trial_results"]) == 3
+        for profile in report["profiles"]
+        for scenario in profile["scenarios"]
+    )
+    assert all(
+        trial["validation"]
+        for profile in report["profiles"]
+        for scenario in profile["scenarios"]
+        for trial in scenario["trial_results"]
+    )
     assert group_report_view(report, "difficulty")["entries"]
     attempts = storage.connection.execute("SELECT COUNT(*) AS n FROM attempts").fetchone()["n"]
     assert attempts == 26
@@ -216,7 +227,13 @@ def test_24_job_matrix_retry_and_resume(tmp_path: Path, monkeypatch: pytest.Monk
     assert test_key.encode() not in plan.database.read_bytes()
     assert (plan.reports / result["run_id"] / "report.json").is_file()
     assert (plan.reports / result["run_id"] / "report.csv").is_file()
-    assert (plan.reports / result["run_id"] / "report.html").is_file()
+    html_path = plan.reports / result["run_id"] / "report.html"
+    assert html_path.is_file()
+    html_report = html_path.read_text(encoding="utf-8")
+    assert "单题与 Trial 明细" in html_report
+    assert "Token 入/出/推理/缓存" in html_report
+    assert "验证明细" in html_report
+    assert "mixed-3x3" in html_report
 
 
 def test_interrupted_run_resumes_without_duplicate_records(

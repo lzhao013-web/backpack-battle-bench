@@ -335,7 +335,8 @@ class Storage:
                    s.scenario_id, s.title, s.difficulty, s.tags_json,
                    s.oracle_attack AS exact_oracle_attack,
                    r.valid, r.error_type, r.actual_attack, r.oracle_attack, r.ratio,
-                   r.finish_reason, r.usage_json, r.latency_ms, r.estimated_cost,
+                   r.finish_reason, r.validation_json, r.usage_json,
+                   r.latency_ms, r.estimated_cost,
                    r.job_id AS result_job_id,
                    (SELECT COUNT(*) FROM attempts a WHERE a.job_id=j.job_id) AS attempt_count
             FROM jobs j

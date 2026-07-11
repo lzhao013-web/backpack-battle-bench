@@ -210,6 +210,9 @@ def test_web_can_start_and_report_mock_run(tmp_path: Path, monkeypatch: pytest.M
             )
             assert html.status_code == 200
             assert "<table>" in html.text
+            assert "单题与 Trial 明细" in html.text
+            assert "mixed-3x3" in html.text
+            assert "验证明细" in html.text
 
     asyncio.run(exercise())
 
