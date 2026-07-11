@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 import httpx
+from rich.console import Console
 
 from backpack_bench import __version__
 from backpack_bench.canonical import content_hash
@@ -31,6 +32,8 @@ from backpack_bench.providers.base import (
 from backpack_bench.schemas import ModelProfile, ModelsConfig, RunPlan
 from backpack_bench.storage import DbWriter, Storage
 from backpack_bench.suite import ResolvedScenario, ResolvedSuite, load_suite
+
+runner_console = Console(stderr=True, highlight=False)
 
 
 def utc_now() -> str:
@@ -82,6 +85,39 @@ class AttemptOutcome:
     validation: dict[str, Any] | None
     latency_ms: float
     retry_after: float | None
+
+
+def _attempt_failure(outcome: AttemptOutcome) -> tuple[str | None, str | None]:
+    error_type = outcome.error_type
+    error_message = outcome.error_message
+    validation = outcome.validation
+    if error_type is None and validation is not None and not validation.get("valid", False):
+        error_type = str(validation.get("error_type") or "invalid_output")
+        errors = validation.get("errors")
+        error_message = (
+            json.dumps(errors, ensure_ascii=False, indent=2)
+            if errors
+            else f"validation failed: {error_type}"
+        )
+    return error_type, error_message
+
+
+def _print_attempt_failure(
+    job: JobContext,
+    attempt_no: int,
+    outcome: AttemptOutcome,
+    api_key: str | None,
+) -> None:
+    error_type, error_message = _attempt_failure(outcome)
+    if error_type is None:
+        return
+    runner_console.print(
+        f"[red]Attempt failed[/red] job={job.job_id} trial={job.trial} "
+        f"attempt={attempt_no} type={error_type} http={outcome.http_status or '—'}"
+    )
+    if error_message:
+        safe_message = redact_secret_values(error_message, api_key)
+        runner_console.print(str(safe_message), markup=False)
 
 
 class RateLimiter:
@@ -342,6 +378,7 @@ def _attempt_artifact(
     api_key: str | None,
 ) -> Path:
     adapter = adapter_for(job.profile)
+    error_type, error_message = _attempt_failure(outcome)
     path = plan.artifacts / job.run_id / job.job_id / f"attempt_{attempt_no:03d}"
     path.mkdir(parents=True, exist_ok=False)
     atomic_write_json(
@@ -384,8 +421,8 @@ def _attempt_artifact(
                 "job_id": job.job_id,
                 "attempt": attempt_no,
                 "http_status": outcome.http_status,
-                "error_type": outcome.error_type,
-                "error_message": outcome.error_message,
+                "error_type": error_type,
+                "error_message": error_message,
                 "latency_ms": round(outcome.latency_ms, 3),
                 "finish_reason": outcome.completion.finish_reason if outcome.completion else None,
                 "usage": outcome.completion.usage if outcome.completion else {},
@@ -431,6 +468,8 @@ async def _execute_job(
             started_at = utc_now()
             outcome = await _call_once(job, client, api_key, limiter, plan.registry)
             completed_at = utc_now()
+            error_type, error_message = _attempt_failure(outcome)
+            _print_attempt_failure(job, attempt_no, outcome, api_key)
             artifact_dir = _attempt_artifact(plan, job, attempt_no, outcome, api_key)
             final_artifact_dir = artifact_dir
             usage = outcome.completion.usage if outcome.completion else {}
@@ -443,8 +482,8 @@ async def _execute_job(
                     "started_at": started_at,
                     "completed_at": completed_at,
                     "http_status": outcome.http_status,
-                    "error_type": outcome.error_type,
-                    "error_message": redact_secret_values(outcome.error_message, api_key),
+                    "error_type": error_type,
+                    "error_message": redact_secret_values(error_message, api_key),
                     "latency_ms": outcome.latency_ms,
                     "usage": safe_usage,
                     "artifact_dir": str(artifact_dir),
@@ -669,19 +708,24 @@ async def execute_plan(
         if clients:
             await asyncio.gather(*(client.aclose() for client in clients.values()))
         if run_registered:
+            if status in {"failed", "interrupted"}:
+                await writer.submit(storage.reset_running_jobs, run_id)
             await writer.submit(storage.complete_run, run_id, status, utc_now())
-            if caught_error is None:
-                try:
-                    from backpack_bench.reporting import build_run_report, serialize_report
+            try:
+                from backpack_bench.reporting import build_run_report, serialize_report
 
-                    report = build_run_report(storage, run_id)
-                    report_dir = plan.reports / run_id
-                    for output_format in ("json", "csv", "html"):
-                        atomic_write_text(
-                            report_dir / f"report.{output_format}",
-                            serialize_report(report, output_format),
-                        )
-                except Exception as report_error:
+                report = build_run_report(storage, run_id)
+                report_dir = plan.reports / run_id
+                for output_format in ("json", "csv", "html"):
+                    atomic_write_text(
+                        report_dir / f"report.{output_format}",
+                        serialize_report(report, output_format),
+                    )
+            except Exception as report_error:
+                runner_console.print(
+                    f"[red]Report generation failed[/red] run={run_id}: {report_error}"
+                )
+                if caught_error is None:
                     status = "failed"
                     caught_error = report_error
                     await writer.submit(storage.complete_run, run_id, status, utc_now())

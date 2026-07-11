@@ -171,6 +171,11 @@ def run_command(
         load_dotenv(Path.cwd() / ".env")
         result = asyncio.run(execute_plan(plan, resume_run_id=resume))
         _print_json(result)
+    except KeyboardInterrupt:
+        console.print(
+            "[yellow]run interrupted; completed jobs were preserved for --resume[/yellow]"
+        )
+        raise typer.Exit(130) from None
     except Exception as error:
         _fail(error)
 

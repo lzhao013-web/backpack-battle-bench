@@ -258,6 +258,13 @@ class Storage:
         )
         self.connection.commit()
 
+    def reset_running_jobs(self, run_id: str) -> None:
+        """Return in-flight jobs to pending after a cooperative interruption."""
+        self.connection.execute(
+            "UPDATE jobs SET status='pending' WHERE run_id=? AND status='running'", (run_id,)
+        )
+        self.connection.commit()
+
     def set_job_status(self, job_id: str, status: str) -> None:
         self.connection.execute("UPDATE jobs SET status=? WHERE job_id=?", (status, job_id))
         self.connection.commit()
@@ -345,6 +352,21 @@ class Storage:
             LEFT JOIN results r ON r.job_id=j.job_id
             WHERE j.run_id=?
             ORDER BY p.profile_id, s.scenario_id, j.trial
+            """,
+            (run_id,),
+        )
+        return [dict(row) for row in rows]
+
+    def report_attempt_rows(self, run_id: str) -> list[dict[str, Any]]:
+        rows = self.connection.execute(
+            """
+            SELECT a.job_id, a.attempt_no, a.started_at, a.completed_at,
+                   a.http_status, a.error_type, a.error_message, a.latency_ms,
+                   a.usage_json
+            FROM attempts a
+            JOIN jobs j ON j.job_id=a.job_id
+            WHERE j.run_id=?
+            ORDER BY a.job_id, a.attempt_no
             """,
             (run_id,),
         )

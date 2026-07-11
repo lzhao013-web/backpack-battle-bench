@@ -51,6 +51,21 @@ class WebFakeAsyncClient:
         pass
 
 
+class WebSlowAsyncClient:
+    calls = 0
+
+    def __init__(self, **_: object) -> None:
+        pass
+
+    async def post(self, url: str, headers: dict[str, str], json: dict[str, Any]) -> httpx.Response:
+        WebSlowAsyncClient.calls += 1
+        await asyncio.sleep(30)
+        raise AssertionError("slow request should be cancelled")
+
+    async def aclose(self) -> None:
+        pass
+
+
 def test_web_scenario_lab_uses_real_validator() -> None:
     async def exercise() -> None:
         app = create_app(ROOT)
@@ -76,6 +91,9 @@ def test_web_scenario_lab_uses_real_validator() -> None:
             assert "API_HISTORY_STORAGE_KEY" in script
             assert "saveCurrentApiHistory" in script
             assert "受 run.yaml 全局并发" in script
+            assert "async function stopRun" in script
+            assert '$("#stop-run").addEventListener("click", stopRun)' in script
+            assert ".button-danger" in styles.text
             html_ids = set(re.findall(r'id="([^"]+)"', root.text))
             queried_ids = set(re.findall(r'\$\("#([^"]+)"\)', script))
             assert queried_ids <= html_ids
@@ -226,6 +244,69 @@ def test_web_can_start_and_report_mock_run(tmp_path: Path, monkeypatch: pytest.M
             assert "单题与 Trial 明细" in html.text
             assert "mixed-3x3" in html.text
             assert "验证明细" in html.text
+
+    asyncio.run(exercise())
+
+
+def test_web_can_interrupt_an_active_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    config_dir = tmp_path / "configs"
+    models = ModelsConfig(
+        profiles=[
+            ModelProfile(
+                id="web-slow",
+                protocol="openai_chat",
+                base_url=HttpUrl("https://slow.test/v1"),
+                model="slow-model",
+                auth_mode="none",
+                limits=ProviderLimits(concurrency=2, retries=0),
+            )
+        ]
+    )
+    atomic_write_yaml(config_dir / "models.yaml", models)
+    run = RunPlan(
+        id="web-interrupt",
+        suite=str(ROOT / "suites" / "smoke-v1.yaml"),
+        models="models.yaml",
+        trials=2,
+        concurrency=2,
+        database="../data/results.sqlite3",
+        artifacts="../data/artifacts",
+        reports="../data/reports",
+    )
+    atomic_write_yaml(config_dir / "run.yaml", run)
+    WebSlowAsyncClient.calls = 0
+    monkeypatch.setattr("backpack_bench.runner.httpx.AsyncClient", WebSlowAsyncClient)
+
+    async def exercise() -> None:
+        app = create_app(tmp_path)
+        transport = httpx.ASGITransport(app=app)
+        async with (
+            app.router.lifespan_context(app),
+            REAL_ASYNC_CLIENT(transport=transport, base_url="http://test") as client,
+        ):
+            config_id = (await client.get("/api/run-configs")).json()[0]["id"]
+            started = await client.post(f"/api/run-configs/{config_id}/runs")
+            assert started.status_code == 202
+            run_id = started.json()["run_id"]
+            for _ in range(100):
+                if WebSlowAsyncClient.calls:
+                    break
+                await asyncio.sleep(0.01)
+            assert WebSlowAsyncClient.calls > 0
+
+            stopped = await client.post(f"/api/run-configs/{config_id}/runs/{run_id}/stop")
+            assert stopped.status_code == 202
+            assert stopped.json()["status"] == "interrupted"
+
+            payload = (await client.get(f"/api/run-configs/{config_id}/runs/{run_id}")).json()
+            assert payload["status"] == "interrupted"
+            assert payload["progress"]["running"] == 0
+            assert payload["progress"]["pending"] == payload["progress"]["total"]
+            assert payload["report"] is not None
+            assert (tmp_path / "data" / "reports" / run_id / "report.html").is_file()
+
+            stopped_again = await client.post(f"/api/run-configs/{config_id}/runs/{run_id}/stop")
+            assert stopped_again.status_code == 409
 
     asyncio.run(exercise())
 

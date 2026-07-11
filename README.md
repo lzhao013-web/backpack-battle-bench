@@ -72,7 +72,7 @@ uv run bbbench web
 - 随时用后端的同一个严格验证器计算攻击、合法性和 Oracle 比例；
 - 一键载入精确 Oracle 见证，并查看完整模型提示词；
 - 直接在前端填写 OpenAI / Anthropic 兼容 API 的 URL、Key、模型名、思考强度、输出上限和限流参数；填写完成后自动记录，并可选择或删除历史 API；
-- 发起 `configs/` 中的 `run.yaml`，跟踪 job 进度、查看模型得分、恢复中断运行并打开 JSON/CSV/HTML 报告。
+- 发起 `configs/` 中的 `run.yaml`，跟踪 job 进度、主动中断运行、查看模型得分、恢复中断运行并打开 JSON/CSV/HTML 报告。
 
 “前端填写 API”模式使用单个前端模型覆盖 `models.yaml` 中的模型矩阵，但仍由所选 `run.yaml` 决定题集、trial、全局并发和产物位置。历史记录保存在当前浏览器的 `localStorage`；“在当前浏览器保存 API Key”可单独关闭。Key 仅在发起或恢复 Run 时传给本地后端并以内存方式使用，不写入 SQLite、artifact、报告或模型配置。切换到“使用 models.yaml / .env”后，行为与 CLI 一致。
 
@@ -218,7 +218,9 @@ uv run bbbench run .\configs\run.ladder.yaml --dry-run
 uv run bbbench run .\configs\run.ladder-v2.yaml --dry-run
 ```
 
-只有网络异常、HTTP 408/429/5xx 会重试，并遵循 `Retry-After`；响应协议错误、非 JSON、答案结构错误和非法摆放不重试。`--resume RUN_ID` 跳过已完成 job，并继续 pending/running job，不生成重复结果。
+只有网络异常、HTTP 408/429/5xx 会重试，并遵循 `Retry-After`；响应协议错误、非 JSON、答案结构错误和非法摆放不重试。CLI 可用 `Ctrl+C` 中断，Web 运行详情中也提供“中断”按钮；正在请求的 job 会回到 pending，已完成结果保留。`--resume RUN_ID` 跳过已完成 job，并继续 pending job，不生成重复结果。
+
+每次失败 attempt 都会立即在控制台打印原始错误类型和消息（API Key 会脱敏），并记录 HTTP 状态、错误、延迟和重试序号。即使整个 Run 失败或被中断，也会生成当时状态的静态报告。
 
 SQLite 开启 WAL、外键和唯一 job 约束；并发结果通过单 writer 队列写入。artifact 采用临时文件 + 原子重命名，按下列结构保存：
 
@@ -250,7 +252,7 @@ scenario_score[s] = 所有 trial 的 ratio 均值
 overall_score = 100 × Σ(weight[s] × scenario_score[s]) / Σ(weight[s])
 ```
 
-报告包含单题实际攻击的均值/最好/最差/标准差、合法率、最优命中率、错误分布、重试率、截断率、延迟 P50/P95、输入/输出/推理/缓存 token 和可选成本估算。HTML 报告还会按模型展开每道题和每次 trial，显示攻击、Oracle 比例、错误、尝试次数、延迟、token、Job ID 及脱敏后的完整验证明细。未配置价格时成本为 `null`。
+报告包含单题实际攻击的均值/最好/最差/标准差、合法率、最优命中率、错误分布、重试率、截断率、延迟 P50/P95、输入/输出/推理/缓存 token 和可选成本估算。HTML 报告还会按模型展开每道题和每次 trial，并继续展开每次 attempt 的 HTTP 状态、原始失败原因、延迟和重试顺序，同时显示攻击、Oracle 比例、Job ID 及脱敏后的完整验证明细。未配置价格时成本为 `null`。
 
 ## 扩展规则
 

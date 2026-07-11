@@ -55,7 +55,24 @@ def _validation(row: dict[str, Any]) -> dict[str, Any]:
     return cast(dict[str, Any], value) if isinstance(value, dict) else {}
 
 
-def _trial_report(row: dict[str, Any]) -> dict[str, Any]:
+def _attempt_report(row: dict[str, Any]) -> dict[str, Any]:
+    input_tokens, output_tokens, reasoning_tokens, cached_tokens = _token_counts(_usage(row))
+    return {
+        "attempt": int(row["attempt_no"]),
+        "started_at": row.get("started_at"),
+        "completed_at": row.get("completed_at"),
+        "http_status": row.get("http_status"),
+        "error_type": row.get("error_type"),
+        "error_message": row.get("error_message"),
+        "latency_ms": float(row["latency_ms"]),
+        "input_tokens": input_tokens,
+        "output_tokens": output_tokens,
+        "reasoning_tokens": reasoning_tokens,
+        "cached_tokens": cached_tokens,
+    }
+
+
+def _trial_report(row: dict[str, Any], attempts: list[dict[str, Any]]) -> dict[str, Any]:
     input_tokens, output_tokens, reasoning_tokens, cached_tokens = _token_counts(_usage(row))
     has_result = row.get("result_job_id") is not None
     return {
@@ -69,6 +86,7 @@ def _trial_report(row: dict[str, Any]) -> dict[str, Any]:
         "error_type": _error_name(row),
         "finish_reason": row.get("finish_reason"),
         "attempt_count": int(row.get("attempt_count") or 0),
+        "attempts": attempts,
         "latency_ms": (float(row["latency_ms"]) if row.get("latency_ms") is not None else None),
         "input_tokens": input_tokens,
         "output_tokens": output_tokens,
@@ -167,6 +185,9 @@ def build_run_report(storage: Storage, run_id: str) -> dict[str, Any]:
     if run is None:
         raise ValueError(f"run {run_id} was not found")
     rows = storage.report_rows(run_id)
+    attempts_by_job: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for attempt in storage.report_attempt_rows(run_id):
+        attempts_by_job[str(attempt["job_id"])].append(_attempt_report(attempt))
     by_profile: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for row in rows:
         by_profile[str(row["profile_hash"])].append(row)
@@ -202,7 +223,10 @@ def build_run_report(storage: Storage, run_id: str) -> dict[str, Any]:
                     "error_counts": dict(
                         sorted(Counter(_error_name(row) for row in scenario_rows).items())
                     ),
-                    "trial_results": [_trial_report(row) for row in scenario_rows],
+                    "trial_results": [
+                        _trial_report(row, attempts_by_job[str(row["job_id"])])
+                        for row in scenario_rows
+                    ],
                 }
             )
         aggregate = _aggregate_rows(profile_rows)
@@ -401,6 +425,36 @@ def _html_errors(value: Any) -> str:
     )
 
 
+def _html_attempt_history(attempts: Any) -> str:
+    if not isinstance(attempts, list) or not attempts:
+        return '<span class="muted">尚未发起</span>'
+    failures = sum(bool(attempt.get("error_type")) for attempt in attempts)
+    rows = []
+    for attempt in attempts:
+        error_message = attempt.get("error_message")
+        message_html = (
+            f'<pre class="attempt-error">{html.escape(str(error_message))}</pre>'
+            if error_message
+            else '<span class="muted">—</span>'
+        )
+        rows.append(
+            "<tr>"
+            f"<td>{int(attempt.get('attempt') or 0)}</td>"
+            f"<td>{_html_text(attempt.get('http_status') or '—')}</td>"
+            f"<td>{_html_text(attempt.get('error_type') or 'success')}</td>"
+            f"<td>{_html_number(attempt.get('latency_ms'))}</td>"
+            f"<td>{message_html}</td>"
+            "</tr>"
+        )
+    return (
+        '<details class="attempt-history"><summary>'
+        f"{len(attempts)} 次 / {failures} 次失败</summary>"
+        '<table class="attempt-table"><thead><tr><th>#</th><th>HTTP</th>'
+        "<th>类型</th><th>延迟 ms</th><th>原始错误（Key 已脱敏）</th>"
+        f"</tr></thead><tbody>{''.join(rows)}</tbody></table></details>"
+    )
+
+
 def _html_trial_rows(trials: Any) -> str:
     if not isinstance(trials, list) or not trials:
         return '<tr><td colspan="12" class="muted">没有 trial 明细</td></tr>'
@@ -427,7 +481,7 @@ def _html_trial_rows(trials: Any) -> str:
             f"{int(trial.get('oracle_attack') or 0)}</td>"
             f"<td>{_html_percent(trial.get('ratio'))}</td>"
             f"<td>{_html_text(trial.get('error_type') or '—')}</td>"
-            f"<td>{int(trial.get('attempt_count') or 0)}</td>"
+            f"<td>{_html_attempt_history(trial.get('attempts'))}</td>"
             f"<td>{_html_number(trial.get('latency_ms'))}</td>"
             f'<td class="tokens">{token_text}</td>'
             f"<td>{_html_text(trial.get('finish_reason') or '—')}</td>"
@@ -469,7 +523,7 @@ def _html_scenarios(scenarios: Any) -> str:
             f'<div class="tags">{tags}</div>'
             '<div class="table-wrap"><table class="trial-table"><thead><tr>'
             "<th>Trial</th><th>结果</th><th>攻击 / Oracle</th><th>比例</th><th>错误</th>"
-            "<th>尝试</th><th>延迟 ms</th><th>Token 入/出/推理/缓存</th><th>结束原因</th>"
+            "<th>尝试明细</th><th>延迟 ms</th><th>Token 入/出/推理/缓存</th><th>结束原因</th>"
             "<th>成本</th><th>Job ID</th><th>验证明细</th>"
             f"</tr></thead><tbody>{_html_trial_rows(scenario.get('trial_results'))}"
             "</tbody></table></div></details>"
@@ -604,8 +658,12 @@ td small,summary small { display:block }.overview { margin-top:1rem }
 .state.bad { color:var(--bad); background:#fff0ee }
 .tokens { font-variant-numeric:tabular-nums }
 .validation summary { cursor:pointer; color:var(--brand) }
+.attempt-history>summary { cursor:pointer; color:var(--brand) }
+.attempt-table { margin-top:.45rem; min-width:680px }
+.attempt-table th,.attempt-table td { white-space:normal }
 pre { max-width:620px; max-height:420px; overflow:auto; padding:.7rem; background:#111827;
   color:#dbe5f4; border-radius:7px; text-align:left; white-space:pre }
+.attempt-error { min-width:360px; max-height:180px; margin:0 }
 code { font-size:.78rem }
 footer { max-width:1500px; margin:0 auto 2rem; padding:0 1.4rem; color:var(--muted) }
 @media(max-width:700px) { main { padding:.7rem }.profile { padding:.7rem }

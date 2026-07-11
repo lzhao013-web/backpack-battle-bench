@@ -140,6 +140,19 @@ class WebRunManager:
         finally:
             api_key_overrides.clear()
 
+    async def stop(self, config_id: str, run_id: str) -> ManagedRun:
+        async with self.lock:
+            state = self.states.get(run_id)
+            task = self.tasks.get(run_id)
+            if state is None or state.config_id != config_id or task is None:
+                raise ValueError(f"unknown managed run: {run_id}")
+            if task.done() or state.status not in {"starting", "running", "stopping"}:
+                raise RuntimeError(f"run {run_id} is not running")
+            state.status = "stopping"
+            task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+        return state
+
     async def shutdown(self) -> None:
         tasks = [task for task in self.tasks.values() if not task.done()]
         for task in tasks:
@@ -383,7 +396,7 @@ def _run_payload(
             "run_id": run_id,
             "plan_id": run["plan_id"],
             "plan_hash": run["plan_hash"],
-            "status": managed.status if managed and managed.status == "failed" else run["status"],
+            "status": managed.status if managed is not None else run["status"],
             "error": managed.error if managed else None,
             "started_at": run["started_at"],
             "completed_at": run["completed_at"],
@@ -481,18 +494,22 @@ def create_app(workspace: Path | None = None) -> FastAPI:
         storage = Storage(plan.database)
         try:
             runs = storage.list_runs(plan_id=plan.spec.id, limit=100)
-            return [
-                {
-                    "run_id": run["run_id"],
-                    "plan_hash": run["plan_hash"],
-                    "status": run["status"],
-                    "started_at": run["started_at"],
-                    "completed_at": run["completed_at"],
-                    "progress": storage.run_progress(str(run["run_id"])),
-                    "profiles": storage.run_profiles(str(run["run_id"])),
-                }
-                for run in runs
-            ]
+            result = []
+            for run in runs:
+                run_id = str(run["run_id"])
+                managed = context.manager.states.get(run_id)
+                result.append(
+                    {
+                        "run_id": run["run_id"],
+                        "plan_hash": run["plan_hash"],
+                        "status": managed.status if managed is not None else run["status"],
+                        "started_at": run["started_at"],
+                        "completed_at": run["completed_at"],
+                        "progress": storage.run_progress(run_id),
+                        "profiles": storage.run_profiles(run_id),
+                    }
+                )
+            return result
         finally:
             storage.close()
 
@@ -563,6 +580,20 @@ def create_app(workspace: Path | None = None) -> FastAPI:
     @app.get("/api/run-configs/{config_id}/runs/{run_id}")
     async def run_status(config_id: str, run_id: str) -> dict[str, Any]:
         return _run_payload(context, config_id, run_id)
+
+    @app.post(
+        "/api/run-configs/{config_id}/runs/{run_id}/stop",
+        status_code=status.HTTP_202_ACCEPTED,
+    )
+    async def stop_run(config_id: str, run_id: str) -> dict[str, Any]:
+        context.run_config(config_id)
+        try:
+            managed = await manager.stop(config_id, run_id)
+        except ValueError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        except RuntimeError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+        return {"run_id": managed.run_id, "status": managed.status}
 
     @app.get("/api/run-configs/{config_id}/runs/{run_id}/report")
     async def run_report(

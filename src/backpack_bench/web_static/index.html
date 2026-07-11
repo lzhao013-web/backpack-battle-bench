@@ -278,7 +278,10 @@
               <h3 id="run-detail-heading">运行详情</h3>
               <p id="selected-run-id">选择一个 Run</p>
             </div>
-            <button id="resume-run" class="button" type="button" hidden>恢复</button>
+            <div class="detail-actions">
+              <button id="stop-run" class="button button-danger" type="button" hidden>中断</button>
+              <button id="resume-run" class="button" type="button" hidden>恢复</button>
+            </div>
           </div>
           <div id="run-detail-empty" class="empty-state">尚未选择运行记录</div>
           <div id="run-detail" hidden>

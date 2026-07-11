@@ -129,7 +129,11 @@ class FastAsyncClient(InterruptibleAsyncClient):
         )
 
 
-def test_24_job_matrix_retry_and_resume(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_24_job_matrix_retry_and_resume(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
     test_key = "credential-never-persist-this-value"
     monkeypatch.setenv("BBB_TEST_API_KEY", test_key)
     profiles = ModelsConfig(
@@ -181,6 +185,12 @@ def test_24_job_matrix_retry_and_resume(tmp_path: Path, monkeypatch: pytest.Monk
     result = asyncio.run(execute_plan(plan))
     assert result["jobs_total"] == 24
     assert result["jobs_completed"] == 24
+    console_errors = capsys.readouterr().err
+    assert "Attempt failed" in console_errors
+    assert "HTTP 429" in console_errors
+    assert "HTTP 500" in console_errors
+    assert test_key not in console_errors
+    assert "***REDACTED***" in console_errors
 
     storage = Storage(plan.database)
     report = build_run_report(storage, result["run_id"])
@@ -208,6 +218,17 @@ def test_24_job_matrix_retry_and_resume(tmp_path: Path, monkeypatch: pytest.Monk
         for scenario in profile["scenarios"]
         for trial in scenario["trial_results"]
     )
+    attempts_in_report = [
+        attempt
+        for profile in report["profiles"]
+        for scenario in profile["scenarios"]
+        for trial in scenario["trial_results"]
+        for attempt in trial["attempts"]
+    ]
+    failed_attempts = [attempt for attempt in attempts_in_report if attempt["error_type"]]
+    assert {attempt["http_status"] for attempt in failed_attempts} >= {429, 500}
+    assert any("HTTP 429" in attempt["error_message"] for attempt in failed_attempts)
+    assert test_key not in json.dumps(failed_attempts)
     assert group_report_view(report, "difficulty")["entries"]
     attempts = storage.connection.execute("SELECT COUNT(*) AS n FROM attempts").fetchone()["n"]
     assert attempts == 26
@@ -233,6 +254,8 @@ def test_24_job_matrix_retry_and_resume(tmp_path: Path, monkeypatch: pytest.Monk
     assert "单题与 Trial 明细" in html_report
     assert "Token 入/出/推理/缓存" in html_report
     assert "验证明细" in html_report
+    assert "原始错误（Key 已脱敏）" in html_report
+    assert "HTTP 429" in html_report
     assert "mixed-3x3" in html_report
 
 
@@ -294,10 +317,16 @@ def test_interrupted_run_resumes_without_duplicate_records(
     with sqlite3.connect(plan.database) as connection:
         run_id, status = connection.execute("SELECT run_id, status FROM runs").fetchone()
         assert status == "interrupted"
+        assert (
+            connection.execute("SELECT COUNT(*) FROM jobs WHERE status='running'").fetchone()[0]
+            == 0
+        )
         completed_before_resume = connection.execute(
             "SELECT COUNT(*) FROM jobs WHERE status='completed'"
         ).fetchone()[0]
         assert 0 < completed_before_resume < 24
+    assert (plan.reports / run_id / "report.json").is_file()
+    assert (plan.reports / run_id / "report.html").is_file()
 
     monkeypatch.setattr("backpack_bench.runner.httpx.AsyncClient", FastAsyncClient)
     resumed = asyncio.run(execute_plan(plan, resume_run_id=run_id))

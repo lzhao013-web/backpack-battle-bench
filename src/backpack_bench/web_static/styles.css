@@ -140,6 +140,8 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 72%, transparent); }
 .button:disabled { opacity: .5; cursor: not-allowed; }
 .button-primary { border-color: var(--primary); background: var(--primary); color: #fff; }
 .button-primary:hover:not(:disabled) { background: var(--primary-strong); color: #fff; }
+.button-danger { border-color: var(--danger); background: var(--danger); color: #fff; }
+.button-danger:hover:not(:disabled) { filter: brightness(.9); color: #fff; }
 .button-quiet { border-color: transparent; background: transparent; }
 
 .scenario-strip {
@@ -183,6 +185,7 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 72%, transparent); }
 }
 .inventory-panel, .score-panel, .history-panel, .run-detail-panel { padding: 16px; }
 .panel-heading { display: flex; align-items: start; justify-content: space-between; gap: 12px; }
+.detail-actions { display: flex; align-items: center; gap: 8px; }
 .panel-heading h3, .board-header h3, .placement-summary h3 { margin: 0; font-size: 14px; }
 .panel-heading p, .board-header p { margin: 4px 0 0; color: var(--muted); font-size: 11px; }
 
@@ -410,7 +413,8 @@ tbody tr[data-run-id]:hover, tbody tr.is-selected { background: var(--primary-so
 .empty-cell { padding: 26px; color: var(--muted); text-align: center; }
 .run-id-cell { max-width: 210px; overflow: hidden; text-overflow: ellipsis; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
 .status-badge[data-status="completed"] { background: var(--primary-soft); color: var(--primary-strong); }
-.status-badge[data-status="running"], .status-badge[data-status="starting"] { background: var(--warning-soft); color: var(--warning); }
+.status-badge[data-status="running"], .status-badge[data-status="starting"],
+.status-badge[data-status="stopping"] { background: var(--warning-soft); color: var(--warning); }
 .status-badge[data-status="failed"] { background: var(--danger-soft); color: var(--danger); }
 .status-badge[data-status="interrupted"] { background: var(--surface-soft); color: var(--muted); }
 .detail-heading { align-items: center; }

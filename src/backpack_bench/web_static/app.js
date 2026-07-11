@@ -1414,6 +1414,11 @@ function renderRunDetail(payload) {
   error.textContent = payload.error || "";
   const canResume = ["failed", "interrupted"].includes(payload.status);
   $("#resume-run").hidden = !canResume;
+  const canStop = ["running", "starting", "stopping"].includes(payload.status);
+  const stopButton = $("#stop-run");
+  stopButton.hidden = !canStop;
+  stopButton.disabled = payload.status === "stopping";
+  stopButton.textContent = payload.status === "stopping" ? "中断中…" : "中断";
   renderReportProfiles(payload.report);
   const actions = $("#report-actions");
   actions.replaceChildren();
@@ -1427,7 +1432,7 @@ function renderRunDetail(payload) {
       actions.append(link);
     });
   }
-  $("#start-run").disabled = ["running", "starting"].includes(payload.status)
+  $("#start-run").disabled = ["running", "starting", "stopping"].includes(payload.status)
     || !runSourceReady();
 }
 
@@ -1440,7 +1445,7 @@ async function loadRunStatus(runId) {
     if (state.selectedRunId !== runId) return;
     renderRunDetail(payload);
     renderRunsTable(await api(`/api/run-configs/${encodeURIComponent(state.runConfigId)}/runs`));
-    if (["running", "starting"].includes(payload.status)) schedulePolling(runId);
+    if (["running", "starting", "stopping"].includes(payload.status)) schedulePolling(runId);
     else stopPolling();
   } catch (error) {
     setRunNotice(error.message, true);
@@ -1466,6 +1471,30 @@ async function resumeRun() {
     setRunNotice(error.message, true);
   } finally {
     $("#resume-run").disabled = false;
+  }
+}
+
+async function stopRun() {
+  if (!state.runConfigId || !state.selectedRunId) return;
+  if (!window.confirm(`确定中断 Run ${state.selectedRunId}？已完成结果会保留，可稍后恢复。`)) {
+    return;
+  }
+  const button = $("#stop-run");
+  button.disabled = true;
+  button.textContent = "中断中…";
+  setRunNotice(`正在中断 Run ${state.selectedRunId}…`);
+  try {
+    const payload = await api(
+      `/api/run-configs/${encodeURIComponent(state.runConfigId)}/runs/${encodeURIComponent(state.selectedRunId)}/stop`,
+      { method: "POST" },
+    );
+    setRunNotice(`Run ${payload.run_id} 已中断；已完成结果已保留`);
+    await refreshRuns();
+    await loadRunStatus(payload.run_id);
+  } catch (error) {
+    setRunNotice(error.message, true);
+  } finally {
+    button.disabled = false;
   }
 }
 
@@ -1554,6 +1583,7 @@ function bindEvents() {
   });
   $("#start-run").addEventListener("click", startRun);
   $("#refresh-runs").addEventListener("click", refreshRuns);
+  $("#stop-run").addEventListener("click", stopRun);
   $("#resume-run").addEventListener("click", resumeRun);
 }
 
