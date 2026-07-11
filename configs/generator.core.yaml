@@ -1,0 +1,10 @@
+schema_version: 1
+id: core-generated
+seed: 20260711
+count: 15
+board_sizes: [[3, 3], [4, 4]]
+max_item_instances: 8
+oracle_timeout_seconds: 5
+candidate_indices: [2, 3, 9, 10, 11, 15, 16, 17, 19, 20, 21, 23, 24, 25, 26]
+output_dir: ../scenarios/generated
+oracle_dir: ../oracles/generated

@@ -1,0 +1,30 @@
+schema_version: 1
+id: smoke-v1
+version: 1.0.0
+title: CI smoke suite v1
+locale: zh-CN
+allowed_plugins:
+- adjacent_stat_bonus
+- ray_stat_bonus
+- sum_stat
+scenarios:
+- scenario: ../scenarios/curated/packing_3x3.yaml
+  oracle: ../oracles/curated/packing_3x3.json
+  scenario_hash: 12fa149f8641859fb23987db5bcaa95bd14b86ec4b14597f3dc03dad45462f05
+  oracle_hash: b86d69fcdecf927f77fc282d3baec05166a82d3aa45dbb4423cd145cf2262dd0
+  weight: 1.0
+- scenario: ../scenarios/curated/adjacency_3x3.yaml
+  oracle: ../oracles/curated/adjacency_3x3.json
+  scenario_hash: b921b77b75ce6b4c0a0d15327aa26a922ea53aa8680766db5ce9813f49133636
+  oracle_hash: 60076298a97096da528f167ef0030b2a31bbead4d9f1190bc1997adf64485c62
+  weight: 1.0
+- scenario: ../scenarios/curated/ray_3x3.yaml
+  oracle: ../oracles/curated/ray_3x3.json
+  scenario_hash: 500cf0bc53db6b20ce7455940783ab72601ba3a61ca73f155b5f29858540b252
+  oracle_hash: 47578750468d2aecfa129ae617bcde4457ebca08c92000b49dab804136f05edd
+  weight: 1.0
+- scenario: ../scenarios/curated/mixed_3x3.yaml
+  oracle: ../oracles/curated/mixed_3x3.json
+  scenario_hash: dc5f5bbd23cc3c87459ca56746bca5cd861392df5a15a0d712d0dbe7fbe51a39
+  oracle_hash: 0fc2f870add40e87bf2d54f54083fc69e6665ea368502140464b53579332225a
+  weight: 1.0

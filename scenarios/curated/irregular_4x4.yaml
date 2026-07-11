@@ -1,0 +1,72 @@
+schema_version: 1
+id: irregular-4x4
+version: 1.0.0
+title: 不规则 4×4 混合空间题
+locale: zh-CN
+board:
+  width: 4
+  height: 4
+  cells:
+    - [0, 0]
+    - [0, 1]
+    - [0, 2]
+    - [1, 0]
+    - [1, 1]
+    - [1, 2]
+    - [1, 3]
+    - [2, 0]
+    - [2, 1]
+    - [2, 2]
+    - [2, 3]
+    - [3, 1]
+    - [3, 2]
+    - [3, 3]
+items:
+  - id: axe
+    display_name: 战斧
+    count: 1
+    shape: [[0, 0], [0, 1], [1, 0]]
+    rotations: [0, 90, 180, 270]
+    category: weapon
+    stats: {attack: 7}
+  - id: knife
+    display_name: 小刀
+    count: 1
+    shape: [[0, 0], [0, 1]]
+    rotations: [0, 90]
+    category: weapon
+    stats: {attack: 4}
+  - id: gem
+    display_name: 宝石
+    count: 1
+    shape: [[0, 0]]
+    rotations: [0, 90]
+    category: support
+    effects:
+      - type: adjacent_stat_bonus
+        config:
+          directions: [[0, -1], [0, 1]]
+          target_category: weapon
+          stat: attack
+          amount: 2
+          once_per_target: true
+  - id: banner
+    display_name: 战旗
+    count: 1
+    shape: [[0, 0], [0, 1]]
+    rotations: [0, 90]
+    category: support
+    effects:
+      - type: ray_stat_bonus
+        config:
+          direction: [-1, 0]
+          target_category: weapon
+          stat: attack
+          amount: 3
+          once_per_target: true
+          blocked: false
+objective:
+  type: sum_stat
+  config: {category: weapon, stat: attack}
+tags: [curated, irregular, mixed]
+difficulty: hard

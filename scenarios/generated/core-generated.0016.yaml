@@ -1,0 +1,108 @@
+schema_version: 1
+id: core-generated.0016
+version: 1.0.0
+title: 公开生成题 0016
+locale: zh-CN
+board:
+  width: 3
+  height: 3
+items:
+- id: item_a
+  display_name: 物品A
+  count: 2
+  shape:
+  - - 0
+    - 0
+  - - 0
+    - 1
+  - - 0
+    - 2
+  rotations:
+  - 0
+  - 90
+  - 180
+  - 270
+  category: weapon
+  stats:
+    attack: 4
+  effects: []
+- id: item_b
+  display_name: 物品B
+  count: 2
+  shape:
+  - - 0
+    - 0
+  rotations:
+  - 0
+  - 90
+  - 180
+  - 270
+  category: weapon
+  stats:
+    attack: 6
+  effects: []
+- id: item_c
+  display_name: 物品C
+  count: 1
+  shape:
+  - - 0
+    - 0
+  rotations:
+  - 0
+  - 90
+  - 180
+  - 270
+  category: support
+  stats: {}
+  effects:
+  - type: adjacent_stat_bonus
+    config:
+      directions:
+      - - -1
+        - 0
+      - - 1
+        - 0
+      target_category: weapon
+      stat: attack
+      amount: 2
+      once_per_target: true
+- id: item_d
+  display_name: 物品D
+  count: 1
+  shape:
+  - - 0
+    - 0
+  - - 0
+    - 1
+  rotations:
+  - 0
+  - 90
+  - 180
+  - 270
+  category: support
+  stats: {}
+  effects:
+  - type: ray_stat_bonus
+    config:
+      direction:
+      - -1
+      - 0
+      target_category: weapon
+      stat: attack
+      amount: 3
+      once_per_target: true
+      blocked: false
+objective:
+  type: sum_stat
+  config:
+    category: weapon
+    stat: attack
+tags:
+- generated
+- board-3x3
+difficulty: medium
+provenance:
+  generator_id: core-generated
+  generator_version: 1.0.0
+  seed: 20260711
+  candidate_index: 16

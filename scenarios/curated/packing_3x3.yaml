@@ -1,0 +1,33 @@
+schema_version: 1
+id: packing-3x3
+version: 1.0.0
+title: 3×3 纯装填取舍题
+locale: zh-CN
+board: {width: 3, height: 3}
+items:
+  - id: great_blade
+    display_name: 大剑
+    count: 3
+    shape: [[0, 0], [0, 1], [0, 2]]
+    rotations: [0, 90]
+    category: weapon
+    stats: {attack: 6}
+  - id: short_blade
+    display_name: 短剑
+    count: 3
+    shape: [[0, 0], [0, 1]]
+    rotations: [0, 90]
+    category: weapon
+    stats: {attack: 4}
+  - id: charm
+    display_name: 护符
+    count: 2
+    shape: [[0, 0]]
+    rotations: [0]
+    category: weapon
+    stats: {attack: 1}
+objective:
+  type: sum_stat
+  config: {category: weapon, stat: attack}
+tags: [curated, packing]
+difficulty: easy

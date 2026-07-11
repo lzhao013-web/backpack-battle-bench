@@ -1,0 +1,46 @@
+{
+  "elapsed_seconds": 1.9016734999895561,
+  "exact": true,
+  "nodes_evaluated": 15353,
+  "optimal_attack": 21,
+  "scenario_hash": "b921b77b75ce6b4c0a0d15327aa26a922ea53aa8680766db5ce9813f49133636",
+  "scenario_id": "adjacency-3x3",
+  "schema_version": 1,
+  "solver_id": "enumeration_branch_bound",
+  "solver_version": "1.0.0",
+  "timed_out": false,
+  "witness": {
+    "placements": [
+      {
+        "col": 0,
+        "item_id": "spear_1",
+        "rotation": 0,
+        "row": 0
+      },
+      {
+        "col": 0,
+        "item_id": "blade_1",
+        "rotation": 0,
+        "row": 2
+      },
+      {
+        "col": 2,
+        "item_id": "blade_2",
+        "rotation": 90,
+        "row": 1
+      },
+      {
+        "col": 0,
+        "item_id": "gem_1",
+        "rotation": 90,
+        "row": 1
+      },
+      {
+        "col": 1,
+        "item_id": "gem_2",
+        "rotation": 90,
+        "row": 1
+      }
+    ]
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "elapsed_seconds": 0.6089661000005435,
+  "exact": true,
+  "nodes_evaluated": 5131,
+  "optimal_attack": 21,
+  "scenario_hash": "7594572ba2e7a9541d5aa0dd48c62b672fb2058206f93522f63a29ea5f936eb8",
+  "scenario_id": "core-generated.0010",
+  "schema_version": 1,
+  "solver_id": "enumeration_branch_bound",
+  "solver_version": "1.0.0",
+  "timed_out": false,
+  "witness": {
+    "placements": [
+      {
+        "col": 0,
+        "item_id": "item_b_1",
+        "rotation": 0,
+        "row": 0
+      },
+      {
+        "col": 0,
+        "item_id": "item_d_1",
+        "rotation": 0,
+        "row": 2
+      },
+      {
+        "col": 0,
+        "item_id": "item_a_1",
+        "rotation": 0,
+        "row": 1
+      },
+      {
+        "col": 1,
+        "item_id": "item_c_1",
+        "rotation": 0,
+        "row": 1
+      }
+    ]
+  }
+}

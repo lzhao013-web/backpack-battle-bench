@@ -1,0 +1,40 @@
+{
+  "elapsed_seconds": 7.616292200007592,
+  "exact": true,
+  "nodes_evaluated": 60066,
+  "optimal_attack": 21,
+  "scenario_hash": "0f625070a0bb7365721ddfeaff4c34f71aece5b50d8261d8f3d87964e2e800b7",
+  "scenario_id": "irregular-4x4",
+  "schema_version": 1,
+  "solver_id": "enumeration_branch_bound",
+  "solver_version": "1.0.0",
+  "timed_out": false,
+  "witness": {
+    "placements": [
+      {
+        "col": 0,
+        "item_id": "axe_1",
+        "rotation": 0,
+        "row": 0
+      },
+      {
+        "col": 1,
+        "item_id": "banner_1",
+        "rotation": 0,
+        "row": 2
+      },
+      {
+        "col": 2,
+        "item_id": "knife_1",
+        "rotation": 0,
+        "row": 1
+      },
+      {
+        "col": 1,
+        "item_id": "gem_1",
+        "rotation": 0,
+        "row": 1
+      }
+    ]
+  }
+}

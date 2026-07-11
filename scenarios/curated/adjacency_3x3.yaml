@@ -1,0 +1,40 @@
+schema_version: 1
+id: adjacency-3x3
+version: 1.0.0
+title: 3×3 方向相邻增益题
+locale: zh-CN
+board: {width: 3, height: 3}
+items:
+  - id: blade
+    display_name: 刀刃
+    count: 2
+    shape: [[0, 0], [0, 1]]
+    rotations: [0, 90]
+    category: weapon
+    stats: {attack: 4}
+  - id: spear
+    display_name: 长枪
+    count: 1
+    shape: [[0, 0], [0, 1], [0, 2]]
+    rotations: [0, 90]
+    category: weapon
+    stats: {attack: 5}
+  - id: gem
+    display_name: 双向宝石
+    count: 3
+    shape: [[0, 0]]
+    rotations: [0, 90]
+    category: support
+    effects:
+      - type: adjacent_stat_bonus
+        config:
+          directions: [[0, -1], [0, 1]]
+          target_category: weapon
+          stat: attack
+          amount: 2
+          once_per_target: true
+objective:
+  type: sum_stat
+  config: {category: weapon, stat: attack}
+tags: [curated, adjacency, rotation]
+difficulty: medium
