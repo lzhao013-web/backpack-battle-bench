@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Backpack Battle Bench</title>
+  <link rel="stylesheet" href="/assets/styles.css">
+</head>
+<body>
+  <header class="app-header">
+    <div class="brand-block">
+      <div class="brand-mark" aria-hidden="true">BB</div>
+      <div>
+        <h1>Backpack Battle Bench</h1>
+        <p>二维布局实验与模型批跑控制台</p>
+      </div>
+    </div>
+    <div class="server-state" id="server-state" role="status">
+      <span class="state-dot"></span><span>正在连接本地引擎</span>
+    </div>
+  </header>
+
+  <nav class="tab-bar" aria-label="主功能">
+    <button class="tab-button is-active" type="button" data-tab="lab" aria-selected="true">
+      题目实验
+    </button>
+    <button class="tab-button" type="button" data-tab="runs" aria-selected="false">
+      模型批跑
+    </button>
+  </nav>
+
+  <main>
+    <section id="lab-panel" class="tab-panel" aria-labelledby="lab-heading">
+      <h2 id="lab-heading" class="sr-only">题目实验</h2>
+      <div class="toolbar">
+        <label>
+          <span>题集</span>
+          <select id="suite-select"></select>
+        </label>
+        <label class="scenario-field">
+          <span>题目</span>
+          <select id="scenario-select"></select>
+        </label>
+        <div class="toolbar-actions">
+          <button id="load-oracle" class="button" type="button">载入最优布局</button>
+          <button id="clear-layout" class="button button-quiet" type="button">清空</button>
+        </div>
+      </div>
+
+      <div class="scenario-strip" id="scenario-strip" aria-live="polite"></div>
+
+      <div class="lab-layout">
+        <aside class="panel inventory-panel" aria-labelledby="inventory-heading">
+          <div class="panel-heading">
+            <div>
+              <h3 id="inventory-heading">物品实例</h3>
+              <p>拖入背包放置 · 拖动中右键旋转</p>
+            </div>
+            <span class="count-badge" id="placed-count">0 / 0</span>
+          </div>
+          <div id="inventory" class="inventory-list"></div>
+          <div class="orientation-control">
+            <label for="rotation-select">当前旋转</label>
+            <select id="rotation-select" disabled></select>
+            <p id="footprint-text">请选择一个物品</p>
+            <div id="selected-item-detail" class="selected-item-detail"></div>
+          </div>
+        </aside>
+
+        <section class="board-column" aria-labelledby="board-heading">
+          <div class="board-header">
+            <div>
+              <h3 id="board-heading">背包空间</h3>
+              <p id="board-help">拖动时显示效果范围 · 右键可随时旋转</p>
+            </div>
+            <div class="legend" aria-label="图例">
+              <span><i class="legend-swatch weapon"></i>武器</span>
+              <span><i class="legend-swatch support"></i>辅助</span>
+              <span><i class="legend-swatch effect"></i>效果范围</span>
+              <span><i class="legend-swatch invalid"></i>无效格</span>
+            </div>
+          </div>
+          <div id="board" class="board" role="grid" aria-label="背包格子"></div>
+          <div id="layout-message" class="layout-message" role="status"></div>
+        </section>
+
+        <aside class="panel score-panel" aria-labelledby="score-heading">
+          <div class="score-orbit" id="score-orbit">
+            <div>
+              <span>当前攻击</span>
+              <strong id="actual-score">0</strong>
+            </div>
+            <small>Oracle <b id="oracle-score">—</b></small>
+          </div>
+          <div class="ratio-track" aria-hidden="true"><span id="ratio-fill"></span></div>
+          <div class="score-status" id="score-status">等待布局</div>
+          <div class="score-meta" id="score-meta"></div>
+          <div class="placement-summary">
+            <h3 id="score-heading">已放置</h3>
+            <div id="placement-list" class="placement-list"></div>
+          </div>
+        </aside>
+      </div>
+
+      <details class="prompt-panel">
+        <summary>查看发送给模型的完整提示词</summary>
+        <div class="prompt-meta" id="prompt-meta"></div>
+        <pre id="prompt-text"></pre>
+      </details>
+    </section>
+
+    <section id="runs-panel" class="tab-panel" hidden aria-labelledby="runs-heading">
+      <h2 id="runs-heading" class="sr-only">模型批跑</h2>
+      <div class="run-toolbar">
+        <label>
+          <span>运行配置</span>
+          <select id="run-config-select"></select>
+        </label>
+        <label>
+          <span>模型来源</span>
+          <select id="model-source-select">
+            <option value="browser">前端填写 API</option>
+            <option value="config">使用 models.yaml / .env</option>
+          </select>
+        </label>
+        <button id="start-run" class="button button-primary" type="button" disabled>发起 Run</button>
+        <button id="refresh-runs" class="button button-quiet" type="button">刷新</button>
+      </div>
+
+      <section id="api-profile-panel" class="panel api-profile-panel" aria-labelledby="api-profile-heading">
+        <div class="panel-heading api-profile-heading">
+          <div>
+            <h3 id="api-profile-heading">API 配置</h3>
+            <p>填写后自动保存到当前浏览器，下次可直接从历史记录选择</p>
+          </div>
+          <div class="api-history-toolbar">
+            <label>
+              <span>历史 API</span>
+              <select id="api-history-select"></select>
+            </label>
+            <button id="new-api-profile" class="button" type="button">新建</button>
+            <button id="delete-api-profile" class="button button-quiet" type="button">删除</button>
+          </div>
+        </div>
+
+        <fieldset id="api-profile-fields" class="api-profile-fields">
+          <div class="api-form-grid">
+            <label>
+              <span>配置名称</span>
+              <input id="api-profile-name" type="text" autocomplete="off" placeholder="例如 DeepSeek Reasoner">
+            </label>
+            <label>
+              <span>协议</span>
+              <select id="api-protocol">
+                <option value="openai_chat">OpenAI Chat Completions</option>
+                <option value="anthropic_messages">Anthropic Messages</option>
+              </select>
+            </label>
+            <label class="api-url-field">
+              <span>API URL</span>
+              <input id="api-base-url" type="url" spellcheck="false" placeholder="https://gateway.example.com/v1">
+            </label>
+            <label>
+              <span>模型名</span>
+              <input id="api-model" type="text" spellcheck="false" placeholder="model-name">
+            </label>
+            <label class="api-key-field">
+              <span>API Key</span>
+              <span class="password-input">
+                <input id="api-key" type="password" autocomplete="off" spellcheck="false" placeholder="输入 API Key">
+                <button id="toggle-api-key" type="button" aria-label="显示 API Key">显示</button>
+              </span>
+            </label>
+          </div>
+
+          <details class="api-advanced">
+            <summary>高级参数</summary>
+            <div class="api-form-grid api-advanced-grid">
+              <label>
+                <span>鉴权方式</span>
+                <select id="api-auth-mode">
+                  <option value="">按协议自动</option>
+                  <option value="bearer">Bearer</option>
+                  <option value="x-api-key">x-api-key</option>
+                  <option value="both">同时发送两种</option>
+                  <option value="none">无需鉴权</option>
+                </select>
+              </label>
+              <label>
+                <span>自定义 Endpoint</span>
+                <input id="api-endpoint" type="text" spellcheck="false" placeholder="留空则自动拼接">
+              </label>
+              <label>
+                <span>思考强度</span>
+                <select id="api-thinking-effort">
+                  <option value="">默认</option>
+                  <option value="minimal">minimal</option>
+                  <option value="low">low</option>
+                  <option value="medium">medium</option>
+                  <option value="high">high</option>
+                  <option value="max">max</option>
+                </select>
+              </label>
+              <label id="anthropic-thinking-mode-field" hidden>
+                <span>Anthropic Thinking</span>
+                <select id="api-thinking-mode">
+                  <option value="">默认</option>
+                  <option value="adaptive">adaptive</option>
+                  <option value="enabled">enabled</option>
+                  <option value="disabled">disabled</option>
+                </select>
+              </label>
+              <label id="anthropic-thinking-budget-field" hidden>
+                <span>Thinking Budget</span>
+                <input id="api-thinking-budget" type="number" min="1024" step="1" placeholder="手动 thinking 时填写">
+              </label>
+              <label>
+                <span>最大输出 Token</span>
+                <input id="api-max-tokens" type="number" min="1" step="1" placeholder="留空则不发送限制">
+              </label>
+              <label>
+                <span>Temperature</span>
+                <input id="api-temperature" type="number" step="0.1" placeholder="留空使用服务默认">
+              </label>
+              <label>
+                <span>超时（秒）</span>
+                <input id="api-timeout" type="number" min="1" step="1" value="120">
+              </label>
+              <label>
+                <span>单模型并发槽位</span>
+                <input id="api-concurrency" type="number" min="1" step="1" value="1">
+              </label>
+              <label>
+                <span>QPS</span>
+                <input id="api-qps" type="number" min="0.01" step="0.01" value="1">
+              </label>
+              <label>
+                <span>重试次数</span>
+                <input id="api-retries" type="number" min="0" max="10" step="1" value="3">
+              </label>
+            </div>
+          </details>
+
+          <div class="api-options">
+            <label><input id="remember-api-key" type="checkbox" checked> 在当前浏览器保存 API Key</label>
+            <label><input id="api-verify-tls" type="checkbox" checked> 验证 TLS 证书</label>
+            <label><input id="api-json-mode" type="checkbox"> 请求 JSON mode</label>
+            <span id="api-save-state" role="status">尚未保存</span>
+          </div>
+        </fieldset>
+      </section>
+
+      <div id="run-notice" class="notice" role="status"></div>
+      <div id="run-preview" class="preview-grid"></div>
+
+      <div class="runs-layout">
+        <section class="panel history-panel" aria-labelledby="history-heading">
+          <div class="panel-heading">
+            <div>
+              <h3 id="history-heading">运行历史</h3>
+              <p>点击一行查看进度与得分</p>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>Run ID</th><th>模型</th><th>状态</th><th>进度</th><th>开始时间</th></tr>
+              </thead>
+              <tbody id="runs-table"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="panel run-detail-panel" aria-labelledby="run-detail-heading">
+          <div class="panel-heading detail-heading">
+            <div>
+              <h3 id="run-detail-heading">运行详情</h3>
+              <p id="selected-run-id">选择一个 Run</p>
+            </div>
+            <button id="resume-run" class="button" type="button" hidden>恢复</button>
+          </div>
+          <div id="run-detail-empty" class="empty-state">尚未选择运行记录</div>
+          <div id="run-detail" hidden>
+            <div class="progress-head">
+              <span id="run-status-badge" class="status-badge">—</span>
+              <strong id="run-progress-label">0 / 0 jobs</strong>
+            </div>
+            <div class="progress-track"><span id="run-progress-fill"></span></div>
+            <div id="run-metrics" class="metric-row"></div>
+            <div id="run-error" class="error-box" hidden></div>
+            <div class="report-actions" id="report-actions"></div>
+            <div class="table-wrap score-table-wrap">
+              <table>
+                <thead>
+                  <tr><th>模型配置</th><th>Score</th><th>合法率</th><th>最优命中</th><th>P50</th></tr>
+                </thead>
+                <tbody id="score-table"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <template id="empty-row-template">
+    <tr><td colspan="5" class="empty-cell">暂无运行记录</td></tr>
+  </template>
+  <script src="/assets/app.js" defer></script>
+</body>
+</html>
