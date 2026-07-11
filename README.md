@@ -72,11 +72,13 @@ uv run bbbench web
 - 随时用后端的同一个严格验证器计算攻击、合法性和 Oracle 比例；
 - 一键载入精确 Oracle 见证，并查看完整模型提示词；
 - 直接在前端填写 OpenAI / Anthropic 兼容 API 的 URL、Key、模型名、思考强度、输出上限和限流参数；填写完成后自动记录，并可选择或删除历史 API；
-- 发起 `configs/` 中的 `run.yaml`，跟踪 job 进度、主动中断运行、查看模型得分、恢复中断运行并打开 JSON/CSV/HTML 报告。
+- 发起 `configs/` 中的 `run.yaml`，在运行详情中通过 SSE 实时查看每个 Job 的状态和输出 Token 数、主动中断运行、查看模型得分、恢复中断运行并打开 JSON/CSV/HTML 报告。
 
 “前端填写 API”模式使用单个前端模型覆盖 `models.yaml` 中的模型矩阵，但仍由所选 `run.yaml` 决定题集、trial、全局并发和产物位置。历史记录保存在当前浏览器的 `localStorage`；“在当前浏览器保存 API Key”可单独关闭。Key 仅在发起或恢复 Run 时传给本地后端并以内存方式使用，不写入 SQLite、artifact、报告或模型配置。切换到“使用 models.yaml / .env”后，行为与 CLI 一致。
 
 Web 进程也会从项目根目录 `.env` 读取配置文件模式所需的 API key，前端 API 不返回 key 或 `api_key_env`。一个 Web 进程同时只发起一个批跑；题内并发仍由 `run.yaml` 和当前模型配置控制。调试 API 文档位于 `/api/docs`。
+
+运行详情的“实时”指浏览器通过 SSE 持续接收 Job 状态快照。当前模型请求仍使用非流式响应，因此输出 Token 数会在对应请求返回并写入结果后出现，而不是逐 Token 递增。
 
 ## 场景格式
 

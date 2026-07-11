@@ -25,12 +25,23 @@ const state = {
   apiSaveTimer: null,
   selectedRunId: null,
   pollTimer: null,
+  runEventSource: null,
+  runEventRunId: null,
 };
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => Array.from(document.querySelectorAll(selector));
 const CATEGORY_LABELS = { weapon: "武器", support: "辅助" };
 const STAT_LABELS = { attack: "攻击" };
+const RUN_STATUS_LABELS = {
+  pending: "待运行",
+  starting: "启动中",
+  running: "运行中",
+  stopping: "中断中",
+  completed: "已完成",
+  failed: "失败",
+  interrupted: "已中断",
+};
 const API_HISTORY_STORAGE_KEY = "bbbench.api-history.v1";
 
 async function api(path, options = {}) {
@@ -1232,6 +1243,7 @@ async function loadRunConfig() {
   if (!state.runConfigId) return;
   state.selectedRunId = null;
   stopPolling();
+  stopRunStream();
   try {
     state.runPreview = await api(
       `/api/run-configs/${encodeURIComponent(state.runConfigId)}/preview`,
@@ -1277,8 +1289,12 @@ function statusBadge(status) {
   const span = document.createElement("span");
   span.className = "status-badge";
   span.dataset.status = status;
-  span.textContent = status;
+  span.textContent = RUN_STATUS_LABELS[status] || status;
   return span;
+}
+
+function runIsActive(status) {
+  return ["running", "starting", "stopping"].includes(status);
 }
 
 function renderRunsTable(runs) {
@@ -1298,8 +1314,10 @@ function renderRunsTable(runs) {
     const model = document.createElement("td");
     model.textContent = (run.profiles || []).map((profile) => profile.model).join("、") || "—";
     const status = document.createElement("td");
+    status.className = "run-status-cell";
     status.append(statusBadge(run.status));
     const progress = document.createElement("td");
+    progress.className = "run-progress-cell";
     progress.textContent = `${run.progress.completed}/${run.progress.total}`;
     const started = document.createElement("td");
     started.textContent = formatDate(run.started_at);
@@ -1349,6 +1367,20 @@ function stopPolling() {
   state.pollTimer = null;
 }
 
+function setRunStreamState(text, streamState = "") {
+  const node = $("#run-stream-state");
+  node.textContent = text;
+  if (streamState) node.dataset.state = streamState;
+  else delete node.dataset.state;
+}
+
+function stopRunStream(label = "未连接", streamState = "") {
+  if (state.runEventSource) state.runEventSource.close();
+  state.runEventSource = null;
+  state.runEventRunId = null;
+  setRunStreamState(label, streamState);
+}
+
 function schedulePolling(runId) {
   stopPolling();
   state.pollTimer = setTimeout(async () => {
@@ -1358,6 +1390,8 @@ function schedulePolling(runId) {
 }
 
 function selectRun(runId) {
+  stopPolling();
+  stopRunStream("正在连接…", "connecting");
   state.selectedRunId = runId;
   loadRunStatus(runId);
 }
@@ -1382,12 +1416,59 @@ function renderReportProfiles(report) {
   });
 }
 
-function renderRunDetail(payload) {
+function renderRunJobs(jobs) {
+  const tbody = $("#run-jobs-table");
+  tbody.replaceChildren();
+  if (!jobs.length) {
+    const row = document.createElement("tr");
+    const cell = document.createElement("td");
+    cell.colSpan = 5;
+    cell.className = "empty-cell";
+    cell.textContent = "任务尚未展开";
+    row.append(cell);
+    tbody.append(row);
+    return;
+  }
+  jobs.forEach((job) => {
+    const row = document.createElement("tr");
+    row.dataset.status = job.status;
+    const status = document.createElement("td");
+    status.append(statusBadge(job.status));
+    if (job.error_type) status.title = job.error_type;
+    const model = document.createElement("td");
+    model.textContent = job.display_name || job.model;
+    model.title = `${job.profile_id} · ${job.model}`;
+    const scenario = document.createElement("td");
+    scenario.textContent = job.title || job.scenario_id;
+    scenario.title = job.scenario_id;
+    const trial = document.createElement("td");
+    trial.textContent = String(job.trial);
+    const tokens = document.createElement("td");
+    tokens.textContent = job.output_tokens == null
+      ? "—"
+      : Number(job.output_tokens).toLocaleString("zh-CN");
+    row.append(status, model, scenario, trial, tokens);
+    tbody.append(row);
+  });
+}
+
+function updateRunListRow(payload) {
+  const row = Array.from($("#runs-table").querySelectorAll("tr[data-run-id]")).find(
+    (item) => item.dataset.runId === payload.run_id,
+  );
+  if (!row) return;
+  const status = row.querySelector(".run-status-cell");
+  const progress = row.querySelector(".run-progress-cell");
+  if (status) status.replaceChildren(statusBadge(payload.status));
+  if (progress) progress.textContent = `${payload.progress.completed}/${payload.progress.total}`;
+}
+
+function renderRunProgress(payload) {
   $("#run-detail-empty").hidden = true;
   $("#run-detail").hidden = false;
   $("#selected-run-id").textContent = payload.run_id;
   const badge = $("#run-status-badge");
-  badge.textContent = payload.status;
+  badge.textContent = RUN_STATUS_LABELS[payload.status] || payload.status;
   badge.dataset.status = payload.status;
   const progress = payload.progress;
   const percent = progress.total ? (progress.completed / progress.total) * 100 : 0;
@@ -1395,10 +1476,15 @@ function renderRunDetail(payload) {
   $("#run-progress-fill").style.width = `${percent}%`;
   const metrics = $("#run-metrics");
   metrics.replaceChildren();
+  const outputTokens = (payload.jobs || []).reduce(
+    (total, job) => total + Number(job.output_tokens || 0),
+    0,
+  );
   [
     ["尝试次数", progress.attempts],
     ["合法结果", progress.valid],
     ["运行中", progress.running],
+    ["输出 Token", outputTokens.toLocaleString("zh-CN")],
   ].forEach(([label, value]) => {
     const item = document.createElement("div");
     item.className = "metric";
@@ -1419,6 +1505,13 @@ function renderRunDetail(payload) {
   stopButton.hidden = !canStop;
   stopButton.disabled = payload.status === "stopping";
   stopButton.textContent = payload.status === "stopping" ? "中断中…" : "中断";
+  renderRunJobs(payload.jobs || []);
+  updateRunListRow(payload);
+  $("#start-run").disabled = runIsActive(payload.status) || !runSourceReady();
+}
+
+function renderRunDetail(payload) {
+  renderRunProgress(payload);
   renderReportProfiles(payload.report);
   const actions = $("#report-actions");
   actions.replaceChildren();
@@ -1432,8 +1525,52 @@ function renderRunDetail(payload) {
       actions.append(link);
     });
   }
-  $("#start-run").disabled = ["running", "starting", "stopping"].includes(payload.status)
-    || !runSourceReady();
+}
+
+function startRunStream(runId) {
+  if (!state.runConfigId || state.selectedRunId !== runId) return;
+  if (state.runEventSource && state.runEventRunId === runId) return;
+  stopPolling();
+  stopRunStream("正在连接…", "connecting");
+  if (!("EventSource" in window)) {
+    setRunStreamState("轮询更新", "fallback");
+    schedulePolling(runId);
+    return;
+  }
+  const configId = state.runConfigId;
+  const path = `/api/run-configs/${encodeURIComponent(configId)}/runs/${encodeURIComponent(runId)}/events`;
+  const source = new EventSource(path);
+  state.runEventSource = source;
+  state.runEventRunId = runId;
+  source.onopen = () => {
+    if (state.runEventSource === source) setRunStreamState("实时更新", "live");
+  };
+  source.onmessage = (event) => {
+    if (
+      state.runEventSource !== source
+      || state.selectedRunId !== runId
+      || state.runConfigId !== configId
+    ) return;
+    let payload;
+    try {
+      payload = JSON.parse(event.data);
+    } catch (_error) {
+      stopRunStream("流数据错误，轮询中", "fallback");
+      schedulePolling(runId);
+      return;
+    }
+    renderRunProgress(payload);
+    if (!runIsActive(payload.status)) {
+      stopRunStream("已结束");
+      stopPolling();
+      loadRunStatus(runId);
+    }
+  };
+  source.onerror = () => {
+    if (state.runEventSource !== source || state.selectedRunId !== runId) return;
+    stopRunStream("连接中断，轮询中", "fallback");
+    schedulePolling(runId);
+  };
 }
 
 async function loadRunStatus(runId) {
@@ -1445,8 +1582,11 @@ async function loadRunStatus(runId) {
     if (state.selectedRunId !== runId) return;
     renderRunDetail(payload);
     renderRunsTable(await api(`/api/run-configs/${encodeURIComponent(state.runConfigId)}/runs`));
-    if (["running", "starting", "stopping"].includes(payload.status)) schedulePolling(runId);
-    else stopPolling();
+    if (runIsActive(payload.status)) startRunStream(runId);
+    else {
+      stopPolling();
+      stopRunStream("已结束");
+    }
   } catch (error) {
     setRunNotice(error.message, true);
   }
@@ -1499,7 +1639,10 @@ async function stopRun() {
 }
 
 function bindEvents() {
-  window.addEventListener("beforeunload", () => flushApiHistorySave());
+  window.addEventListener("beforeunload", () => {
+    flushApiHistorySave();
+    if (state.runEventSource) state.runEventSource.close();
+  });
   document.addEventListener("pointermove", handlePointerMove, { passive: false });
   document.addEventListener("pointerup", (event) => {
     const drag = state.pointerDrag;

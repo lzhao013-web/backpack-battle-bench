@@ -93,7 +93,11 @@ def test_web_scenario_lab_uses_real_validator() -> None:
             assert "受 run.yaml 全局并发" in script
             assert "async function stopRun" in script
             assert '$("#stop-run").addEventListener("click", stopRun)' in script
+            assert "function startRunStream" in script
+            assert "new EventSource" in script
+            assert "run-jobs-table" in root.text
             assert ".button-danger" in styles.text
+            assert ".job-stream-wrap" in styles.text
             html_ids = set(re.findall(r'id="([^"]+)"', root.text))
             queried_ids = set(re.findall(r'\$\("#([^"]+)"\)', script))
             assert queried_ids <= html_ids
@@ -233,7 +237,18 @@ def test_web_can_start_and_report_mock_run(tmp_path: Path, monkeypatch: pytest.M
             assert payload["status"] == "completed"
             assert payload["progress"]["total"] == 4
             assert payload["progress"]["completed"] == 4
+            assert len(payload["jobs"]) == 4
+            assert all(job["status"] == "completed" for job in payload["jobs"])
+            assert all(job["output_tokens"] == 20 for job in payload["jobs"])
             assert payload["report"]["profiles"][0]["overall_score"] == 100
+            events = await client.get(f"/api/run-configs/{config_id}/runs/{run_id}/events")
+            assert events.status_code == 200
+            assert events.headers["content-type"].startswith("text/event-stream")
+            data_line = next(line for line in events.text.splitlines() if line.startswith("data: "))
+            snapshot = json.loads(data_line.removeprefix("data: "))
+            assert snapshot["status"] == "completed"
+            assert len(snapshot["jobs"]) == 4
+            assert all(job["output_tokens"] == 20 for job in snapshot["jobs"])
             csv = await client.get(f"/api/run-configs/{config_id}/runs/{run_id}/report?format=csv")
             assert csv.status_code == 200
             html = await client.get(
@@ -294,14 +309,30 @@ def test_web_can_interrupt_an_active_run(tmp_path: Path, monkeypatch: pytest.Mon
                 await asyncio.sleep(0.01)
             assert WebSlowAsyncClient.calls > 0
 
+            stream_task = asyncio.create_task(
+                client.get(f"/api/run-configs/{config_id}/runs/{run_id}/events")
+            )
+            await asyncio.sleep(0.05)
             stopped = await client.post(f"/api/run-configs/{config_id}/runs/{run_id}/stop")
             assert stopped.status_code == 202
             assert stopped.json()["status"] == "interrupted"
+            stream = await asyncio.wait_for(stream_task, timeout=2)
+            snapshots = [
+                json.loads(line.removeprefix("data: "))
+                for line in stream.text.splitlines()
+                if line.startswith("data: ")
+            ]
+            assert snapshots[0]["status"] == "running"
+            assert snapshots[0]["progress"]["running"] > 0
+            assert snapshots[-1]["status"] == "interrupted"
 
             payload = (await client.get(f"/api/run-configs/{config_id}/runs/{run_id}")).json()
             assert payload["status"] == "interrupted"
             assert payload["progress"]["running"] == 0
             assert payload["progress"]["pending"] == payload["progress"]["total"]
+            assert len(payload["jobs"]) == 8
+            assert all(job["status"] == "pending" for job in payload["jobs"])
+            assert all(job["output_tokens"] is None for job in payload["jobs"])
             assert payload["report"] is not None
             assert (tmp_path / "data" / "reports" / run_id / "report.html").is_file()
 

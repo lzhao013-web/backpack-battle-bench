@@ -292,6 +292,21 @@
             <div class="progress-track"><span id="run-progress-fill"></span></div>
             <div id="run-metrics" class="metric-row"></div>
             <div id="run-error" class="error-box" hidden></div>
+            <div class="job-stream-heading">
+              <div>
+                <h4>任务状态</h4>
+                <p>实时显示每个 Job 的状态与输出 Token</p>
+              </div>
+              <span id="run-stream-state" class="stream-state">未连接</span>
+            </div>
+            <div class="table-wrap job-stream-wrap">
+              <table>
+                <thead>
+                  <tr><th>状态</th><th>模型</th><th>题目</th><th>Trial</th><th>输出 Token</th></tr>
+                </thead>
+                <tbody id="run-jobs-table"></tbody>
+              </table>
+            </div>
             <div class="report-actions" id="report-actions"></div>
             <div class="table-wrap score-table-wrap">
               <table>

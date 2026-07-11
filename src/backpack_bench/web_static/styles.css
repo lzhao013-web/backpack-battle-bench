@@ -420,11 +420,22 @@ tbody tr[data-run-id]:hover, tbody tr.is-selected { background: var(--primary-so
 .detail-heading { align-items: center; }
 .empty-state { padding: 54px 12px; color: var(--muted); text-align: center; }
 .progress-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 20px 0 9px; }
-.metric-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 13px; }
+.metric-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(86px, 1fr)); gap: 8px; margin-top: 13px; }
 .metric { padding: 9px; border-radius: 9px; background: var(--surface-soft); }
 .metric span { display: block; color: var(--muted); font-size: 10px; }
 .metric strong { display: block; margin-top: 2px; }
 .error-box { margin-top: 12px; padding: 10px; border-radius: 9px; background: var(--danger-soft); color: var(--danger); font-size: 11px; }
+.job-stream-heading { display: flex; align-items: end; justify-content: space-between; gap: 12px; margin-top: 18px; }
+.job-stream-heading h4 { margin: 0; font-size: 13px; }
+.job-stream-heading p { margin: 3px 0 0; color: var(--muted); font-size: 10px; }
+.stream-state { padding: 4px 8px; border-radius: 99px; background: var(--surface-soft); color: var(--muted); font-size: 10px; font-weight: 700; }
+.stream-state[data-state="live"] { background: var(--primary-soft); color: var(--primary-strong); }
+.stream-state[data-state="connecting"] { background: var(--warning-soft); color: var(--warning); }
+.stream-state[data-state="fallback"] { background: var(--danger-soft); color: var(--danger); }
+.job-stream-wrap { max-height: 320px; margin-top: 8px; overflow: auto; border: 1px solid var(--border); border-radius: 9px; }
+.job-stream-wrap th { position: sticky; z-index: 1; top: 0; background: var(--surface); }
+.job-stream-wrap tr[data-status="running"] { background: var(--warning-soft); }
+.job-stream-wrap td:last-child { font-variant-numeric: tabular-nums; }
 .report-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 13px; }
 .report-actions a { color: var(--primary); font-size: 11px; }
 .score-table-wrap { margin-top: 10px; }

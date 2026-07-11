@@ -357,6 +357,31 @@ class Storage:
         )
         return [dict(row) for row in rows]
 
+    def run_job_rows(self, run_id: str) -> list[dict[str, Any]]:
+        """Return the lightweight per-job state used by the live Web view."""
+        rows = self.connection.execute(
+            """
+            SELECT j.job_id, j.trial, j.status,
+                   p.profile_id, p.display_name, p.model,
+                   s.scenario_id, s.title,
+                   r.job_id AS result_job_id, r.valid, r.error_type, r.usage_json,
+                   (SELECT COUNT(*) FROM attempts a WHERE a.job_id=j.job_id) AS attempt_count
+            FROM jobs j
+            JOIN profiles p ON p.profile_hash=j.profile_hash
+            JOIN scenarios s ON s.scenario_hash=j.scenario_hash
+            LEFT JOIN results r ON r.job_id=j.job_id
+            WHERE j.run_id=?
+            ORDER BY CASE j.status
+                         WHEN 'running' THEN 0
+                         WHEN 'pending' THEN 1
+                         ELSE 2
+                     END,
+                     p.profile_id, s.scenario_id, j.trial
+            """,
+            (run_id,),
+        )
+        return [dict(row) for row in rows]
+
     def report_attempt_rows(self, run_id: str) -> list[dict[str, Any]]:
         rows = self.connection.execute(
             """

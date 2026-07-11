@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -11,8 +12,14 @@ from pathlib import Path
 from typing import Any, Literal
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Query, status
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse
+from fastapi import FastAPI, HTTPException, Query, Request, status
+from fastapi.responses import (
+    FileResponse,
+    HTMLResponse,
+    JSONResponse,
+    PlainTextResponse,
+    StreamingResponse,
+)
 from fastapi.staticfiles import StaticFiles
 from pydantic import Field, HttpUrl, SecretStr
 from starlette.responses import Response
@@ -348,6 +355,39 @@ def _config_summary(context: WebContext, config_id: str, plan: ResolvedPlan) -> 
     }
 
 
+def _output_tokens(usage_json: str | None) -> int:
+    if not usage_json:
+        return 0
+    try:
+        usage = json.loads(usage_json)
+    except (TypeError, json.JSONDecodeError):
+        return 0
+    if not isinstance(usage, dict):
+        return 0
+    try:
+        return int(usage.get("completion_tokens", usage.get("output_tokens", 0)) or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _job_payload(row: dict[str, Any]) -> dict[str, Any]:
+    has_result = row["result_job_id"] is not None
+    return {
+        "job_id": row["job_id"],
+        "profile_id": row["profile_id"],
+        "display_name": row["display_name"],
+        "model": row["model"],
+        "scenario_id": row["scenario_id"],
+        "title": row["title"],
+        "trial": row["trial"],
+        "status": row["status"],
+        "output_tokens": _output_tokens(row["usage_json"]) if has_result else None,
+        "valid": bool(row["valid"]) if has_result else None,
+        "error_type": row["error_type"] if has_result else None,
+        "attempt_count": row["attempt_count"],
+    }
+
+
 def _run_payload(
     context: WebContext,
     config_id: str,
@@ -369,6 +409,7 @@ def _run_payload(
                 "attempts": 0,
                 "valid": 0,
             },
+            "jobs": [],
             "report": None,
         }
     storage = Storage(plan.database)
@@ -389,6 +430,7 @@ def _run_payload(
                     "attempts": 0,
                     "valid": 0,
                 },
+                "jobs": [],
                 "report": None,
             }
         report = build_run_report(storage, run_id) if include_report else None
@@ -402,6 +444,7 @@ def _run_payload(
             "completed_at": run["completed_at"],
             "progress": storage.run_progress(run_id),
             "profiles": storage.run_profiles(run_id),
+            "jobs": [_job_payload(row) for row in storage.run_job_rows(run_id)],
             "report": report,
         }
     finally:
@@ -580,6 +623,32 @@ def create_app(workspace: Path | None = None) -> FastAPI:
     @app.get("/api/run-configs/{config_id}/runs/{run_id}")
     async def run_status(config_id: str, run_id: str) -> dict[str, Any]:
         return _run_payload(context, config_id, run_id)
+
+    @app.get("/api/run-configs/{config_id}/runs/{run_id}/events")
+    async def run_events(config_id: str, run_id: str, request: Request) -> StreamingResponse:
+        initial = _run_payload(context, config_id, run_id, include_report=False)
+
+        async def event_stream() -> AsyncIterator[str]:
+            payload = initial
+            while True:
+                encoded = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+                yield f"data: {encoded}\n\n"
+                if payload["status"] not in {"starting", "running", "stopping"}:
+                    return
+                await asyncio.sleep(0.75)
+                if await request.is_disconnected():
+                    return
+                payload = _run_payload(context, config_id, run_id, include_report=False)
+
+        return StreamingResponse(
+            event_stream(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+            },
+        )
 
     @app.post(
         "/api/run-configs/{config_id}/runs/{run_id}/stop",
