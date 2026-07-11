@@ -1,0 +1,281 @@
+{
+  "$defs": {
+    "BoardSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "cells": {
+          "anyOf": [
+            {
+              "items": {
+                "maxItems": 2,
+                "minItems": 2,
+                "prefixItems": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "integer"
+                  }
+                ],
+                "type": "array"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cells"
+        },
+        "height": {
+          "exclusiveMinimum": 0,
+          "title": "Height",
+          "type": "integer"
+        },
+        "width": {
+          "exclusiveMinimum": 0,
+          "title": "Width",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "width",
+        "height"
+      ],
+      "title": "BoardSpec",
+      "type": "object"
+    },
+    "EffectSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "config": {
+          "additionalProperties": true,
+          "title": "Config",
+          "type": "object"
+        },
+        "type": {
+          "minLength": 1,
+          "pattern": "^[a-z][a-z0-9_.-]*$",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "EffectSpec",
+      "type": "object"
+    },
+    "ItemTypeSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "category": {
+          "default": "support",
+          "minLength": 1,
+          "title": "Category",
+          "type": "string"
+        },
+        "count": {
+          "default": 1,
+          "exclusiveMinimum": 0,
+          "title": "Count",
+          "type": "integer"
+        },
+        "display_name": {
+          "minLength": 1,
+          "title": "Display Name",
+          "type": "string"
+        },
+        "effects": {
+          "items": {
+            "$ref": "#/$defs/EffectSpec"
+          },
+          "title": "Effects",
+          "type": "array"
+        },
+        "id": {
+          "minLength": 1,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "rotations": {
+          "items": {
+            "enum": [
+              0,
+              90,
+              180,
+              270
+            ],
+            "type": "integer"
+          },
+          "title": "Rotations",
+          "type": "array"
+        },
+        "shape": {
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "integer"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Shape",
+          "type": "array"
+        },
+        "stats": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "title": "Stats",
+          "type": "object"
+        }
+      },
+      "required": [
+        "id",
+        "display_name",
+        "shape"
+      ],
+      "title": "ItemTypeSpec",
+      "type": "object"
+    },
+    "ObjectiveSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "config": {
+          "additionalProperties": true,
+          "title": "Config",
+          "type": "object"
+        },
+        "type": {
+          "default": "sum_stat",
+          "minLength": 1,
+          "pattern": "^[a-z][a-z0-9_.-]*$",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "config"
+      ],
+      "title": "ObjectiveSpec",
+      "type": "object"
+    },
+    "ScenarioProvenance": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_index": {
+          "title": "Candidate Index",
+          "type": "integer"
+        },
+        "generator_id": {
+          "title": "Generator Id",
+          "type": "string"
+        },
+        "generator_version": {
+          "title": "Generator Version",
+          "type": "string"
+        },
+        "seed": {
+          "title": "Seed",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "generator_id",
+        "generator_version",
+        "seed",
+        "candidate_index"
+      ],
+      "title": "ScenarioProvenance",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "board": {
+      "$ref": "#/$defs/BoardSpec"
+    },
+    "difficulty": {
+      "default": "medium",
+      "enum": [
+        "easy",
+        "medium",
+        "hard"
+      ],
+      "title": "Difficulty",
+      "type": "string"
+    },
+    "id": {
+      "minLength": 1,
+      "pattern": "^[a-z][a-z0-9_.-]*$",
+      "title": "Id",
+      "type": "string"
+    },
+    "items": {
+      "items": {
+        "$ref": "#/$defs/ItemTypeSpec"
+      },
+      "title": "Items",
+      "type": "array"
+    },
+    "locale": {
+      "const": "zh-CN",
+      "default": "zh-CN",
+      "title": "Locale",
+      "type": "string"
+    },
+    "objective": {
+      "$ref": "#/$defs/ObjectiveSpec"
+    },
+    "provenance": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ScenarioProvenance"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "tags": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Tags",
+      "type": "array"
+    },
+    "title": {
+      "title": "Title",
+      "type": "string"
+    },
+    "version": {
+      "default": "1.0.0",
+      "title": "Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "title",
+    "board",
+    "items",
+    "objective"
+  ],
+  "title": "ScenarioSpec",
+  "type": "object"
+}

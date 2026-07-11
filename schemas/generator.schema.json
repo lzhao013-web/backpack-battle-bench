@@ -1,0 +1,90 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "board_sizes": {
+      "items": {
+        "maxItems": 2,
+        "minItems": 2,
+        "prefixItems": [
+          {
+            "exclusiveMinimum": 0,
+            "type": "integer"
+          },
+          {
+            "exclusiveMinimum": 0,
+            "type": "integer"
+          }
+        ],
+        "type": "array"
+      },
+      "title": "Board Sizes",
+      "type": "array"
+    },
+    "candidate_indices": {
+      "anyOf": [
+        {
+          "items": {
+            "exclusiveMinimum": 0,
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Candidate Indices"
+    },
+    "count": {
+      "exclusiveMinimum": 0,
+      "title": "Count",
+      "type": "integer"
+    },
+    "id": {
+      "pattern": "^[a-z][a-z0-9_.-]*$",
+      "title": "Id",
+      "type": "string"
+    },
+    "max_item_instances": {
+      "default": 8,
+      "exclusiveMinimum": 0,
+      "maximum": 8,
+      "title": "Max Item Instances",
+      "type": "integer"
+    },
+    "oracle_dir": {
+      "title": "Oracle Dir",
+      "type": "string"
+    },
+    "oracle_timeout_seconds": {
+      "default": 60.0,
+      "exclusiveMinimum": 0,
+      "title": "Oracle Timeout Seconds",
+      "type": "number"
+    },
+    "output_dir": {
+      "title": "Output Dir",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "seed": {
+      "title": "Seed",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "id",
+    "seed",
+    "count",
+    "output_dir",
+    "oracle_dir"
+  ],
+  "title": "GeneratorSpec",
+  "type": "object"
+}

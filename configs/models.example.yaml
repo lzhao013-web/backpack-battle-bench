@@ -1,0 +1,31 @@
+schema_version: 1
+profiles:
+  - id: openai-compatible-medium
+    display_name: OpenAI-compatible / medium
+    protocol: openai_chat
+    base_url: https://gateway.example.com/v1
+    model: replace-me
+    api_key_env: OPENAI_COMPATIBLE_API_KEY
+    params:
+      thinking_effort: medium
+      json_mode: false
+    limits:
+      concurrency: 1
+      qps: 1
+      timeout_seconds: 120
+      retries: 3
+  - id: anthropic-compatible-high
+    display_name: Anthropic-compatible / adaptive high
+    protocol: anthropic_messages
+    base_url: https://gateway.example.com/v1
+    model: replace-me
+    api_key_env: ANTHROPIC_COMPATIBLE_API_KEY
+    params:
+      max_tokens: 8192
+      thinking_effort: high
+      thinking_mode: adaptive
+    limits:
+      concurrency: 1
+      qps: 1
+      timeout_seconds: 120
+      retries: 3

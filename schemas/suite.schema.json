@@ -1,0 +1,92 @@
+{
+  "$defs": {
+    "SuiteScenarioEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "oracle": {
+          "title": "Oracle",
+          "type": "string"
+        },
+        "oracle_hash": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Oracle Hash",
+          "type": "string"
+        },
+        "scenario": {
+          "title": "Scenario",
+          "type": "string"
+        },
+        "scenario_hash": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Scenario Hash",
+          "type": "string"
+        },
+        "weight": {
+          "default": 1.0,
+          "exclusiveMinimum": 0,
+          "title": "Weight",
+          "type": "number"
+        }
+      },
+      "required": [
+        "scenario",
+        "oracle",
+        "scenario_hash",
+        "oracle_hash"
+      ],
+      "title": "SuiteScenarioEntry",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "allowed_plugins": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Allowed Plugins",
+      "type": "array"
+    },
+    "id": {
+      "pattern": "^[a-z][a-z0-9_.-]*$",
+      "title": "Id",
+      "type": "string"
+    },
+    "locale": {
+      "const": "zh-CN",
+      "default": "zh-CN",
+      "title": "Locale",
+      "type": "string"
+    },
+    "scenarios": {
+      "items": {
+        "$ref": "#/$defs/SuiteScenarioEntry"
+      },
+      "title": "Scenarios",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "title": {
+      "title": "Title",
+      "type": "string"
+    },
+    "version": {
+      "title": "Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "version",
+    "title",
+    "allowed_plugins",
+    "scenarios"
+  ],
+  "title": "SuiteSpec",
+  "type": "object"
+}

@@ -1,0 +1,54 @@
+{
+  "$defs": {
+    "PlacementInput": {
+      "additionalProperties": false,
+      "properties": {
+        "col": {
+          "title": "Col",
+          "type": "integer"
+        },
+        "item_id": {
+          "title": "Item Id",
+          "type": "string"
+        },
+        "rotation": {
+          "enum": [
+            0,
+            90,
+            180,
+            270
+          ],
+          "title": "Rotation",
+          "type": "integer"
+        },
+        "row": {
+          "title": "Row",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "item_id",
+        "row",
+        "col",
+        "rotation"
+      ],
+      "title": "PlacementInput",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "placements": {
+      "items": {
+        "$ref": "#/$defs/PlacementInput"
+      },
+      "title": "Placements",
+      "type": "array"
+    }
+  },
+  "required": [
+    "placements"
+  ],
+  "title": "PlacementAnswer",
+  "type": "object"
+}

@@ -1,0 +1,73 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "artifacts": {
+      "default": ".bbbench/artifacts",
+      "title": "Artifacts",
+      "type": "string"
+    },
+    "concurrency": {
+      "default": 1,
+      "exclusiveMinimum": 0,
+      "title": "Concurrency",
+      "type": "integer"
+    },
+    "database": {
+      "default": ".bbbench/results.sqlite3",
+      "title": "Database",
+      "type": "string"
+    },
+    "id": {
+      "pattern": "^[a-zA-Z0-9_.-]+$",
+      "title": "Id",
+      "type": "string"
+    },
+    "model_ids": {
+      "anyOf": [
+        {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Model Ids"
+    },
+    "models": {
+      "title": "Models",
+      "type": "string"
+    },
+    "reports": {
+      "default": ".bbbench/reports",
+      "title": "Reports",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "suite": {
+      "title": "Suite",
+      "type": "string"
+    },
+    "trials": {
+      "default": 1,
+      "exclusiveMinimum": 0,
+      "title": "Trials",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "id",
+    "suite",
+    "models"
+  ],
+  "title": "RunPlan",
+  "type": "object"
+}
