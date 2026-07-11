@@ -1,0 +1,65 @@
+schema_version: 1
+id: ladder-l2-selection
+version: 1.0.0
+title: L2 · 缺角背包的取舍
+locale: zh-CN
+board:
+  width: 4
+  height: 4
+  cells:
+    - [0, 1]
+    - [0, 2]
+    - [0, 3]
+    - [1, 0]
+    - [1, 1]
+    - [1, 2]
+    - [1, 3]
+    - [2, 0]
+    - [2, 1]
+    - [2, 2]
+    - [2, 3]
+    - [3, 0]
+    - [3, 1]
+    - [3, 2]
+    - [3, 3]
+items:
+  - id: greatsword
+    display_name: 长剑
+    count: 1
+    shape: [[0, 0], [0, 1], [0, 2]]
+    rotations: [0, 90]
+    category: weapon
+    stats: {attack: 8}
+  - id: l_blade
+    display_name: L形弯刀
+    count: 2
+    shape: [[0, 0], [1, 0], [1, 1]]
+    rotations: [0, 90, 180, 270]
+    category: weapon
+    stats: {attack: 6}
+  - id: dagger
+    display_name: 匕首
+    count: 3
+    shape: [[0, 0], [0, 1]]
+    rotations: [0, 90]
+    category: weapon
+    stats: {attack: 3}
+  - id: gem
+    display_name: 聚能宝石
+    count: 1
+    shape: [[0, 0]]
+    rotations: [0, 90]
+    category: support
+    effects:
+      - type: adjacent_stat_bonus
+        config:
+          directions: [[0, -1], [0, 1]]
+          target_category: weapon
+          stat: attack
+          amount: 3
+          once_per_target: true
+objective:
+  type: sum_stat
+  config: {category: weapon, stat: attack}
+tags: [ladder, L2, packing, selection, irregular-board]
+difficulty: easy

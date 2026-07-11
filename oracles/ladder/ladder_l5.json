@@ -1,0 +1,58 @@
+{
+  "elapsed_seconds": 5.588118500003475,
+  "exact": true,
+  "nodes_evaluated": 9783,
+  "optimal_attack": 71,
+  "scenario_hash": "8ddc7bf83d7507d507012d0c7fa6b89461f6ea182233689bf271a4a6bbd36280",
+  "scenario_id": "ladder-l5-prism-maze",
+  "schema_version": 1,
+  "solver_id": "enumeration_branch_bound",
+  "solver_version": "1.3.0",
+  "timed_out": false,
+  "witness": {
+    "placements": [
+      {
+        "col": 2,
+        "item_id": "warped_halberd_1",
+        "rotation": 0,
+        "row": 3
+      },
+      {
+        "col": 2,
+        "item_id": "zigzag_blade_1",
+        "rotation": 0,
+        "row": 1
+      },
+      {
+        "col": 0,
+        "item_id": "hook_blade_1",
+        "rotation": 180,
+        "row": 1
+      },
+      {
+        "col": 1,
+        "item_id": "prism_array_1",
+        "rotation": 180,
+        "row": 0
+      },
+      {
+        "col": 0,
+        "item_id": "twin_dagger_1",
+        "rotation": 0,
+        "row": 3
+      },
+      {
+        "col": 1,
+        "item_id": "cursed_idol_1",
+        "rotation": 90,
+        "row": 4
+      },
+      {
+        "col": 2,
+        "item_id": "focus_gem_1",
+        "rotation": 0,
+        "row": 4
+      }
+    ]
+  }
+}

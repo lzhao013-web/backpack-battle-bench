@@ -1,0 +1,52 @@
+{
+  "elapsed_seconds": 0.42357080000510905,
+  "exact": true,
+  "nodes_evaluated": 199,
+  "optimal_attack": 32,
+  "scenario_hash": "bd1c2fd2dcc87c3202c7d8d4d09922d72806c703e3088f71cce7d67ca2cfda78",
+  "scenario_id": "ladder-l2-selection",
+  "schema_version": 1,
+  "solver_id": "enumeration_branch_bound",
+  "solver_version": "1.3.0",
+  "timed_out": false,
+  "witness": {
+    "placements": [
+      {
+        "col": 1,
+        "item_id": "l_blade_1",
+        "rotation": 0,
+        "row": 0
+      },
+      {
+        "col": 0,
+        "item_id": "l_blade_2",
+        "rotation": 0,
+        "row": 1
+      },
+      {
+        "col": 0,
+        "item_id": "greatsword_1",
+        "rotation": 0,
+        "row": 3
+      },
+      {
+        "col": 2,
+        "item_id": "dagger_1",
+        "rotation": 0,
+        "row": 0
+      },
+      {
+        "col": 2,
+        "item_id": "dagger_2",
+        "rotation": 0,
+        "row": 2
+      },
+      {
+        "col": 3,
+        "item_id": "gem_1",
+        "rotation": 90,
+        "row": 1
+      }
+    ]
+  }
+}

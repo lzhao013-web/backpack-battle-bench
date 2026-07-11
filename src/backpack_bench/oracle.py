@@ -25,7 +25,7 @@ from backpack_bench.schemas import (
 )
 
 SOLVER_ID = "enumeration_branch_bound"
-SOLVER_VERSION = "1.2.0"
+SOLVER_VERSION = "1.3.0"
 
 
 @dataclass(frozen=True)
@@ -137,6 +137,61 @@ def _score_selected(
     return score_evaluation_context(_context_for_selected(scenario, selected), registry)[2]
 
 
+def _selected_effect_bound(
+    context: EvaluationContext,
+    source: PlacedItem,
+    effect: Any,
+    remaining_target_count: int,
+    remaining_target_cell_count: int,
+    registry: PluginRegistry,
+) -> int | None:
+    """Return a placement-aware upper bound for one already placed source.
+
+    The old bound assumed that every already placed weapon could still move into
+    every effect area.  Once a source and some targets are fixed, that is far too
+    loose.  We count hits that already exist, then reserve room for every still
+    unplaced target.  This deliberately ignores future overlap and blocking, so
+    it remains an optimistic (safe) bound while pruning much more aggressively.
+    """
+
+    handler = registry.effect(effect.type)
+    config = handler.validate_config(effect.config)
+    amount = getattr(config, "amount", 0)
+    if amount <= 0:
+        return 0
+
+    events = handler.apply(context, source, effect)
+    existing_hits = len(events)
+    once_per_target = bool(getattr(config, "once_per_target", True))
+
+    if effect.type == "adjacent_stat_bonus":
+        total_slots = len(source.cells) * len(getattr(config, "directions", ()))
+        if once_per_target:
+            hits = min(total_slots, existing_hits + remaining_target_count)
+        else:
+            # One future target cell can touch several source cells, so cell
+            # count alone is not a safe cap for repeated-hit rules.
+            hits = total_slots if remaining_target_count else existing_hits
+    elif effect.type == "ray_stat_bonus":
+        if bool(getattr(config, "blocked", False)):
+            # Each source cell emits one ray and a blocked ray can hit at most
+            # one item/cell before it stops.
+            if once_per_target:
+                hits = min(len(source.cells), existing_hits + remaining_target_count)
+            else:
+                # Collinear source cells may all hit the same future cell.
+                hits = len(source.cells) if remaining_target_count else existing_hits
+        elif once_per_target:
+            hits = existing_hits + remaining_target_count
+        else:
+            # A remaining target cell may conservatively be counted once for
+            # every source ray.  Collinear source cells make this loose but safe.
+            hits = existing_hits + remaining_target_cell_count * len(source.cells)
+    else:
+        return None
+    return amount * hits
+
+
 def _optimistic_bound(
     scenario: ScenarioSpec,
     selected: list[Candidate],
@@ -170,22 +225,94 @@ def _optimistic_bound(
     target_cell_count = sum(
         len(item.shape) * count for item, count in possible if item.category == category
     )
+    remaining_ids = {item.id for item in remaining_items}
+    remaining_target_count = sum(
+        item.count for item in remaining_items if item.category == category
+    )
+    remaining_target_cell_count = sum(
+        len(item.shape) * item.count for item in remaining_items if item.category == category
+    )
+    context = _context_for_selected(scenario, selected) if selected else None
+    selected_by_type: dict[str, list[PlacedItem]] = {}
+    if context is not None:
+        for candidate, placement in zip(selected, context.placements, strict=True):
+            selected_by_type.setdefault(candidate.item.id, []).append(placement)
+
     effect_bound = 0
-    for item, count in possible:
+    for item, _count in possible:
         for effect in item.effects:
             handler = registry.effect(effect.type)
             if not isinstance(handler, OracleBoundProvider):
                 return None
-            bonus = handler.optimistic_bonus(
-                effect,
-                count,
-                target_count,
-                len(item.shape),
-                target_cell_count,
-            )
-            if bonus is None:
-                return None
-            effect_bound += bonus
+            config = handler.validate_config(effect.config)
+            is_builtin_spatial_effect = effect.type in {
+                "adjacent_stat_bonus",
+                "ray_stat_bonus",
+            }
+            # For built-ins we know these fields exactly. Third-party bound
+            # providers remain authoritative about their own semantics.
+            if is_builtin_spatial_effect and (
+                getattr(config, "stat", None) != stat
+                or getattr(config, "target_category", None) != category
+            ):
+                continue
+
+            selected_sources = selected_by_type.get(item.id, [])
+            if selected_sources:
+                if context is None:
+                    raise AssertionError("selected sources require an evaluation context")
+                if is_builtin_spatial_effect:
+                    for source in selected_sources:
+                        bonus = _selected_effect_bound(
+                            context,
+                            source,
+                            effect,
+                            remaining_target_count,
+                            remaining_target_cell_count,
+                            registry,
+                        )
+                        if bonus is None:
+                            return None
+                        effect_bound += bonus
+                else:
+                    eligible_target_count = target_count
+                    eligible_target_cell_count = target_cell_count
+                    if item.category == category:
+                        eligible_target_count = max(0, eligible_target_count - 1)
+                        eligible_target_cell_count = max(
+                            0, eligible_target_cell_count - len(item.shape)
+                        )
+                    bonus = handler.optimistic_bonus(
+                        effect,
+                        len(selected_sources),
+                        eligible_target_count,
+                        len(item.shape),
+                        eligible_target_cell_count,
+                    )
+                    if bonus is None:
+                        return None
+                    effect_bound += bonus
+
+            if item.id in remaining_ids:
+                eligible_target_count = target_count
+                eligible_target_cell_count = target_cell_count
+                if item.category == category:
+                    # A source can affect other instances of its category, but
+                    # never itself.
+                    eligible_target_count = max(0, eligible_target_count - 1)
+                    eligible_target_cell_count = max(
+                        0, eligible_target_cell_count - len(item.shape)
+                    )
+                bonus = handler.optimistic_bonus(
+                    effect,
+                    item.count,
+                    eligible_target_count,
+                    len(item.shape),
+                    eligible_target_cell_count,
+                )
+                if bonus is None:
+                    return None
+                effect_bound += bonus
     return base + effect_bound
 
 

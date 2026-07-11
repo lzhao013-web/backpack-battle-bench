@@ -1,0 +1,9 @@
+schema_version: 1
+id: ladder-v1
+suite: ../suites/ladder-v1.yaml
+models: models.example.yaml
+trials: 3
+concurrency: 5
+database: ../.bbbench/results.sqlite3
+artifacts: ../.bbbench/artifacts
+reports: ../.bbbench/reports
