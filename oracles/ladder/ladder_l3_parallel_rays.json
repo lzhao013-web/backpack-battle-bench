@@ -1,0 +1,46 @@
+{
+  "elapsed_seconds": 3.16829190000135,
+  "exact": true,
+  "nodes_evaluated": 7272,
+  "optimal_attack": 35,
+  "scenario_hash": "8b5cdaedac36ec68e5217b6468c1ca6ff90d5df149eb7baf94eea05645b8f7c5",
+  "scenario_id": "ladder-l3-parallel-rays",
+  "schema_version": 1,
+  "solver_id": "enumeration_branch_bound",
+  "solver_version": "1.3.0",
+  "timed_out": false,
+  "witness": {
+    "placements": [
+      {
+        "col": 0,
+        "item_id": "greatsword_1",
+        "rotation": 0,
+        "row": 0
+      },
+      {
+        "col": 0,
+        "item_id": "rapier_1",
+        "rotation": 0,
+        "row": 1
+      },
+      {
+        "col": 0,
+        "item_id": "rapier_2",
+        "rotation": 0,
+        "row": 2
+      },
+      {
+        "col": 0,
+        "item_id": "prism_bar_1",
+        "rotation": 0,
+        "row": 3
+      },
+      {
+        "col": 3,
+        "item_id": "dagger_1",
+        "rotation": 0,
+        "row": 0
+      }
+    ]
+  }
+}

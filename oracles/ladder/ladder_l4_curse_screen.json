@@ -1,0 +1,58 @@
+{
+  "elapsed_seconds": 0.12368509999942034,
+  "exact": true,
+  "nodes_evaluated": 2519,
+  "optimal_attack": 37,
+  "scenario_hash": "5db6fa5a8ab08eb38652fc8f22efa7f397af4c064f27dab291580dc970283b07",
+  "scenario_id": "ladder-l4-curse-screen",
+  "schema_version": 1,
+  "solver_id": "enumeration_branch_bound",
+  "solver_version": "1.3.0",
+  "timed_out": false,
+  "witness": {
+    "placements": [
+      {
+        "col": 1,
+        "item_id": "cursed_crown_1",
+        "rotation": 0,
+        "row": 0
+      },
+      {
+        "col": 0,
+        "item_id": "l_blade_1",
+        "rotation": 0,
+        "row": 2
+      },
+      {
+        "col": 3,
+        "item_id": "l_blade_2",
+        "rotation": 0,
+        "row": 2
+      },
+      {
+        "col": 0,
+        "item_id": "dagger_1",
+        "rotation": 0,
+        "row": 4
+      },
+      {
+        "col": 2,
+        "item_id": "dagger_2",
+        "rotation": 0,
+        "row": 4
+      },
+      {
+        "col": 2,
+        "item_id": "screen_1",
+        "rotation": 0,
+        "row": 1
+      },
+      {
+        "col": 3,
+        "item_id": "screen_2",
+        "rotation": 0,
+        "row": 1
+      }
+    ]
+  }
+}

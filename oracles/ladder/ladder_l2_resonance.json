@@ -1,0 +1,40 @@
+{
+  "elapsed_seconds": 0.027577399989240803,
+  "exact": true,
+  "nodes_evaluated": 80,
+  "optimal_attack": 25,
+  "scenario_hash": "87988dca3aa18313adc3c74644d7bca071fcd4fb5b029490762a331320a7c656",
+  "scenario_id": "ladder-l2-resonance",
+  "schema_version": 1,
+  "solver_id": "enumeration_branch_bound",
+  "solver_version": "1.3.0",
+  "timed_out": false,
+  "witness": {
+    "placements": [
+      {
+        "col": 0,
+        "item_id": "crescent_blade_1",
+        "rotation": 0,
+        "row": 0
+      },
+      {
+        "col": 0,
+        "item_id": "crescent_blade_2",
+        "rotation": 0,
+        "row": 2
+      },
+      {
+        "col": 2,
+        "item_id": "bar_blade_1",
+        "rotation": 90,
+        "row": 0
+      },
+      {
+        "col": 1,
+        "item_id": "resonance_core_1",
+        "rotation": 0,
+        "row": 2
+      }
+    ]
+  }
+}

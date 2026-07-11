@@ -16,6 +16,8 @@ uv run mypy src tests
 uv run pytest
 uv run bbbench suite validate suites/smoke-v1.yaml
 uv run bbbench suite validate suites/core-v1.yaml
+uv run bbbench suite validate suites/ladder-v1.yaml
+uv run bbbench suite validate suites/ladder-v2.yaml
 uv build
 ```
 

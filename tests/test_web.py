@@ -84,6 +84,7 @@ def test_web_scenario_lab_uses_real_validator() -> None:
                 "smoke-v1",
                 "core-v1",
                 "ladder-v1",
+                "ladder-v2",
             }
             detail = (await client.get("/api/suites/smoke-v1/scenarios/mixed-3x3")).json()
             assert detail["oracle"]["optimal_attack"] == 21
@@ -135,6 +136,18 @@ def test_ladder_run_config_expands_to_30_jobs() -> None:
     assert summary["suite_id"] == "ladder-v1"
     assert summary["scenarios"] == 5
     assert summary["jobs"] == 30
+    assert summary["concurrency"] == 5
+
+
+def test_expanded_ladder_run_config_expands_to_90_jobs() -> None:
+    plan = resolve_plan(
+        ROOT / "configs" / "run.ladder-v2.yaml",
+        PluginRegistry(load_external=False),
+    )
+    summary = dry_run_summary(plan)
+    assert summary["suite_id"] == "ladder-v2"
+    assert summary["scenarios"] == 15
+    assert summary["jobs"] == 90
     assert summary["concurrency"] == 5
 
 

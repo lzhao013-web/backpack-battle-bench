@@ -1,0 +1,46 @@
+{
+  "elapsed_seconds": 0.005520799997611903,
+  "exact": true,
+  "nodes_evaluated": 26,
+  "optimal_attack": 16,
+  "scenario_hash": "26bffc6efd803f01993fb11aa1df3d74faa8e2382605d6b331d1548fd035dd8c",
+  "scenario_id": "ladder-l1-compass",
+  "schema_version": 1,
+  "solver_id": "enumeration_branch_bound",
+  "solver_version": "1.3.0",
+  "timed_out": false,
+  "witness": {
+    "placements": [
+      {
+        "col": 0,
+        "item_id": "short_sword_1",
+        "rotation": 0,
+        "row": 0
+      },
+      {
+        "col": 0,
+        "item_id": "short_sword_2",
+        "rotation": 0,
+        "row": 1
+      },
+      {
+        "col": 2,
+        "item_id": "dagger_1",
+        "rotation": 0,
+        "row": 0
+      },
+      {
+        "col": 0,
+        "item_id": "dagger_2",
+        "rotation": 0,
+        "row": 2
+      },
+      {
+        "col": 2,
+        "item_id": "compass_1",
+        "rotation": 270,
+        "row": 1
+      }
+    ]
+  }
+}

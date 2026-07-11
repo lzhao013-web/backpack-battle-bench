@@ -1,0 +1,85 @@
+schema_version: 1
+id: ladder-v2
+version: 2.0.0
+title: L1–L5 空间推理扩展阶梯 v2
+locale: zh-CN
+allowed_plugins:
+- adjacent_stat_bonus
+- ray_stat_bonus
+- sum_stat
+scenarios:
+- scenario: ../scenarios/ladder/ladder_l1.yaml
+  oracle: ../oracles/ladder/ladder_l1.json
+  scenario_hash: e02e811c3ca3e05efbce6dea564e996541cfab842adfda3a360a51519e83262e
+  oracle_hash: 11453afd02d9960a427b5e8f0943ea718613ff6076745cfb315f73a06fca69e1
+  weight: 1.0
+- scenario: ../scenarios/ladder/ladder_l1_shape_lock.yaml
+  oracle: ../oracles/ladder/ladder_l1_shape_lock.json
+  scenario_hash: 75c41c49d5c353d025aa1881a3cfb3408dcca33411aae309cf03c90249b15399
+  oracle_hash: 02c60911a184b1f0a3a28c9b0a7f315552dfa8ab9b23b3d05ce00f922b132524
+  weight: 1.0
+- scenario: ../scenarios/ladder/ladder_l1_compass.yaml
+  oracle: ../oracles/ladder/ladder_l1_compass.json
+  scenario_hash: 26bffc6efd803f01993fb11aa1df3d74faa8e2382605d6b331d1548fd035dd8c
+  oracle_hash: 1e56a90a7243bad150fc554e0a61a250e9488a3a1e22410e4912d41deb67f1e9
+  weight: 1.0
+- scenario: ../scenarios/ladder/ladder_l2.yaml
+  oracle: ../oracles/ladder/ladder_l2.json
+  scenario_hash: bd1c2fd2dcc87c3202c7d8d4d09922d72806c703e3088f71cce7d67ca2cfda78
+  oracle_hash: 5d69c6fe3bd9cc26f37da9b6f4387edc744d7b3bd86d88e9d156a8a4eca71363
+  weight: 1.0
+- scenario: ../scenarios/ladder/ladder_l2_resonance.yaml
+  oracle: ../oracles/ladder/ladder_l2_resonance.json
+  scenario_hash: 87988dca3aa18313adc3c74644d7bca071fcd4fb5b029490762a331320a7c656
+  oracle_hash: 0cc144aa59bf225d937f741afe3da3780fbf188d195521503c08a063fe499af6
+  weight: 1.0
+- scenario: ../scenarios/ladder/ladder_l2_dual_focus.yaml
+  oracle: ../oracles/ladder/ladder_l2_dual_focus.json
+  scenario_hash: ea17211555e85fc76f4b21e3a9c85a54ee579a58f7ae239e728a39ba1a6b814e
+  oracle_hash: 20d9c27a9f8208c23ae382eb2db95f7b7c503d0cbebdb54602d781915d27b651
+  weight: 1.0
+- scenario: ../scenarios/ladder/ladder_l3.yaml
+  oracle: ../oracles/ladder/ladder_l3.json
+  scenario_hash: 05de94c5547b8cb4628ba3337ff9fa7dc5f5f610a8a1dcbbf2e5990130ebaf17
+  oracle_hash: 9da8c0a427f0624a21dc0f57e99cd1b5084e49c132c5c4b7c0a714ae6b945c48
+  weight: 1.0
+- scenario: ../scenarios/ladder/ladder_l3_occlusion.yaml
+  oracle: ../oracles/ladder/ladder_l3_occlusion.json
+  scenario_hash: 8bd6d272bf86f111c7c3f7ecb97695160382c89ab7900472b61b6a65234ca59b
+  oracle_hash: 496d27ad0cd2f6ef8a2e9f0818303616a724c4b21f9fb8b9f5b77ac749253792
+  weight: 1.0
+- scenario: ../scenarios/ladder/ladder_l3_parallel_rays.yaml
+  oracle: ../oracles/ladder/ladder_l3_parallel_rays.json
+  scenario_hash: 8b5cdaedac36ec68e5217b6468c1ca6ff90d5df149eb7baf94eea05645b8f7c5
+  oracle_hash: a1922777362b563b3c08bb3a0700834fb51fb44a7d2a28c75d4924d6b2e0128a
+  weight: 1.0
+- scenario: ../scenarios/ladder/ladder_l4.yaml
+  oracle: ../oracles/ladder/ladder_l4.json
+  scenario_hash: 3227e38a526fd10740fd4b3cf180d424cb23c910f22c5361c8e232dd95c7f1a3
+  oracle_hash: 9a2ec16d17a5d7d6f53b37f451b2f43ee95075413589e4db2346bf7ba67acb58
+  weight: 1.0
+- scenario: ../scenarios/ladder/ladder_l4_curse_screen.yaml
+  oracle: ../oracles/ladder/ladder_l4_curse_screen.json
+  scenario_hash: 5db6fa5a8ab08eb38652fc8f22efa7f397af4c064f27dab291580dc970283b07
+  oracle_hash: 1362fb8c5266748f22a0f6012f987142f33f1e0bfa0dfd56c16b5f5d260f34d2
+  weight: 1.0
+- scenario: ../scenarios/ladder/ladder_l4_crossed_fields.yaml
+  oracle: ../oracles/ladder/ladder_l4_crossed_fields.json
+  scenario_hash: ccf872df0515422d4451fa055aa7620c7c3863eb5021aadc74510eadfb3abfb3
+  oracle_hash: a9f2cb6a2559c6b752268bcd9cc3bb7cf44f5e664e2f18c6ca10fe049a091842
+  weight: 1.0
+- scenario: ../scenarios/ladder/ladder_l5.yaml
+  oracle: ../oracles/ladder/ladder_l5.json
+  scenario_hash: 8ddc7bf83d7507d507012d0c7fa6b89461f6ea182233689bf271a4a6bbd36280
+  oracle_hash: 28200f8c1954a2a3e095947164961f1fac4bb07f147b830d178763a3f1107405
+  weight: 1.0
+- scenario: ../scenarios/ladder/ladder_l5_offset_web.yaml
+  oracle: ../oracles/ladder/ladder_l5_offset_web.json
+  scenario_hash: f7f2f894df42b2bd6e274d05b514f29b6bebf948a784cea0fb676417baf72fc7
+  oracle_hash: b28a1ee6600ea869246a702d8e9980d76ee72ec478d98cb27350d62dd8a79ec1
+  weight: 1.0
+- scenario: ../scenarios/ladder/ladder_l5_ray_labyrinth.yaml
+  oracle: ../oracles/ladder/ladder_l5_ray_labyrinth.json
+  scenario_hash: 04487bec4862b318234510c3072b3b9b2a6a40cd8d9c272eadd975b13d0ee08e
+  oracle_hash: 171887707676167bcef4415ae81bc849c266282940f099e8e40a16826742ed00
+  weight: 1.0

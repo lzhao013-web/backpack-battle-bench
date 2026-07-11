@@ -1,0 +1,52 @@
+{
+  "elapsed_seconds": 18.08073499999591,
+  "exact": true,
+  "nodes_evaluated": 583,
+  "optimal_attack": 92,
+  "scenario_hash": "04487bec4862b318234510c3072b3b9b2a6a40cd8d9c272eadd975b13d0ee08e",
+  "scenario_id": "ladder-l5-ray-labyrinth",
+  "schema_version": 1,
+  "solver_id": "enumeration_branch_bound",
+  "solver_version": "1.3.0",
+  "timed_out": false,
+  "witness": {
+    "placements": [
+      {
+        "col": 1,
+        "item_id": "laser_lance_1",
+        "rotation": 0,
+        "row": 3
+      },
+      {
+        "col": 0,
+        "item_id": "zigzag_blade_1",
+        "rotation": 0,
+        "row": 0
+      },
+      {
+        "col": 3,
+        "item_id": "l_blade_1",
+        "rotation": 0,
+        "row": 0
+      },
+      {
+        "col": 2,
+        "item_id": "l_blade_2",
+        "rotation": 0,
+        "row": 1
+      },
+      {
+        "col": 1,
+        "item_id": "curse_orb_1",
+        "rotation": 270,
+        "row": 2
+      },
+      {
+        "col": 0,
+        "item_id": "focus_gem_1",
+        "rotation": 0,
+        "row": 3
+      }
+    ]
+  }
+}

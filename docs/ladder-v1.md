@@ -28,4 +28,4 @@ uv run bbbench run .\configs\run.ladder.yaml --dry-run
 uv run bbbench web
 ```
 
-Web 实验台会自动发现 `ladder-v1` 和 `run.ladder.yaml`。五份场景位于 `scenarios/ladder/`，精确证明与见证位于 `oracles/ladder/`。
+Web 实验台会自动发现 `ladder-v1` 和 `run.ladder.yaml`。该 suite 引用的五份基准场景位于 `scenarios/ladder/`，精确证明与见证位于 `oracles/ladder/`；同一目录中的扩展题由 `ladder-v2` 管理。

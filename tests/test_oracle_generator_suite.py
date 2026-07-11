@@ -131,16 +131,26 @@ def test_public_suites_are_exact_and_complete(registry: PluginRegistry) -> None:
     smoke = load_suite(ROOT / "suites" / "smoke-v1.yaml", registry)
     core = load_suite(ROOT / "suites" / "core-v1.yaml", registry)
     ladder = load_suite(ROOT / "suites" / "ladder-v1.yaml", registry)
+    expanded_ladder = load_suite(ROOT / "suites" / "ladder-v2.yaml", registry)
     assert len(smoke.scenarios) == 4
     assert len(core.scenarios) == 20
     assert len(ladder.scenarios) == 5
+    assert len(expanded_ladder.scenarios) == 15
     assert all(item.entry.weight == 1.0 for item in core.scenarios)
     assert all(item.entry.weight == 1.0 for item in ladder.scenarios)
+    assert all(item.entry.weight == 1.0 for item in expanded_ladder.scenarios)
     assert smoke.suite_hash == "607017adff4960d25efbfeec5772d3b3a52300714e1a32fc73671f81cb176904"
     assert core.suite_hash == "90f9ddc8182a3597d0c7a13f9ca02fcd66ff587f25a24d2ba8b48f671b152468"
     assert ladder.suite_hash == "4e838684c27018b78e09de86a63a543d6543151d99b7e19e9c62e7d416b60918"
+    assert (
+        expanded_ladder.suite_hash
+        == "ff68e7cacf578531b7e16d7457b87b727a9ea3cd315d87dc562bacf3a595c2ba"
+    )
     assert all(item.oracle.exact and item.oracle.optimal_attack for item in core.scenarios)
     assert all(item.oracle.exact and item.oracle.optimal_attack for item in ladder.scenarios)
+    assert all(
+        item.oracle.exact and item.oracle.optimal_attack for item in expanded_ladder.scenarios
+    )
     generated = [item.scenario for item in core.scenarios if item.scenario.provenance is not None]
     assert len(generated) == 15
     assert sum(item.scenario.provenance is None for item in core.scenarios) == 5

@@ -1,0 +1,42 @@
+schema_version: 1
+id: ladder-l2-resonance
+version: 1.0.0
+title: L2 · 四向共振
+locale: zh-CN
+board:
+  width: 4
+  height: 4
+items:
+  - id: crescent_blade
+    display_name: 折角弯刃
+    count: 2
+    shape: [[0, 0], [1, 0], [1, 1]]
+    rotations: [0, 90, 180, 270]
+    category: weapon
+    stats: {attack: 6}
+  - id: bar_blade
+    display_name: 三格长刃
+    count: 1
+    shape: [[0, 0], [0, 1], [0, 2]]
+    rotations: [0, 90]
+    category: weapon
+    stats: {attack: 5}
+  - id: resonance_core
+    display_name: 四向共振核
+    count: 1
+    shape: [[0, 0]]
+    rotations: [0]
+    category: support
+    effects:
+      - type: adjacent_stat_bonus
+        config:
+          directions: [[-1, 0], [1, 0], [0, -1], [0, 1]]
+          target_category: weapon
+          stat: attack
+          amount: 2
+          once_per_target: false
+objective:
+  type: sum_stat
+  config: {category: weapon, stat: attack}
+tags: [ladder, L2, repeated-hit, multi-contact, adjacency]
+difficulty: easy

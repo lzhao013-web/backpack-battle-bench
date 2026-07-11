@@ -1,0 +1,64 @@
+{
+  "elapsed_seconds": 17.62618069999735,
+  "exact": true,
+  "nodes_evaluated": 17801,
+  "optimal_attack": 71,
+  "scenario_hash": "f7f2f894df42b2bd6e274d05b514f29b6bebf948a784cea0fb676417baf72fc7",
+  "scenario_id": "ladder-l5-offset-web",
+  "schema_version": 1,
+  "solver_id": "enumeration_branch_bound",
+  "solver_version": "1.3.0",
+  "timed_out": false,
+  "witness": {
+    "placements": [
+      {
+        "col": 0,
+        "item_id": "star_halberd_1",
+        "rotation": 0,
+        "row": 3
+      },
+      {
+        "col": 0,
+        "item_id": "zigzag_blade_1",
+        "rotation": 0,
+        "row": 0
+      },
+      {
+        "col": 3,
+        "item_id": "moon_blade_1",
+        "rotation": 90,
+        "row": 2
+      },
+      {
+        "col": 2,
+        "item_id": "moon_blade_2",
+        "rotation": 270,
+        "row": 0
+      },
+      {
+        "col": 0,
+        "item_id": "twin_dagger_1",
+        "rotation": 0,
+        "row": 2
+      },
+      {
+        "col": 2,
+        "item_id": "twin_dagger_2",
+        "rotation": 0,
+        "row": 4
+      },
+      {
+        "col": 2,
+        "item_id": "constellation_core_1",
+        "rotation": 0,
+        "row": 2
+      },
+      {
+        "col": 4,
+        "item_id": "corner_gem_1",
+        "rotation": 180,
+        "row": 1
+      }
+    ]
+  }
+}

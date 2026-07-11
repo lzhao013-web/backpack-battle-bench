@@ -1,0 +1,58 @@
+{
+  "elapsed_seconds": 8.300357599990093,
+  "exact": true,
+  "nodes_evaluated": 75880,
+  "optimal_attack": 74,
+  "scenario_hash": "ccf872df0515422d4451fa055aa7620c7c3863eb5021aadc74510eadfb3abfb3",
+  "scenario_id": "ladder-l4-crossed-fields",
+  "schema_version": 1,
+  "solver_id": "enumeration_branch_bound",
+  "solver_version": "1.3.0",
+  "timed_out": false,
+  "witness": {
+    "placements": [
+      {
+        "col": 0,
+        "item_id": "t_blade_1",
+        "rotation": 0,
+        "row": 1
+      },
+      {
+        "col": 3,
+        "item_id": "l_blade_1",
+        "rotation": 0,
+        "row": 0
+      },
+      {
+        "col": 3,
+        "item_id": "l_blade_2",
+        "rotation": 270,
+        "row": 2
+      },
+      {
+        "col": 0,
+        "item_id": "eclipse_spear_1",
+        "rotation": 180,
+        "row": 3
+      },
+      {
+        "col": 1,
+        "item_id": "dagger_1",
+        "rotation": 0,
+        "row": 0
+      },
+      {
+        "col": 2,
+        "item_id": "dagger_2",
+        "rotation": 0,
+        "row": 2
+      },
+      {
+        "col": 2,
+        "item_id": "sun_prism_1",
+        "rotation": 0,
+        "row": 4
+      }
+    ]
+  }
+}

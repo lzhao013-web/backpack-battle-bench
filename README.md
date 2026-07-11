@@ -31,7 +31,7 @@ uv run bbbench run .\configs\run.example.yaml
 src/backpack_bench/       可安装 Python 包和 bbbench CLI
 scenarios/                人工题与固定种子生成题
 oracles/                  精确最优值和见证布局
-suites/                   smoke-v1 / core-v1 / ladder-v1 manifest
+suites/                   smoke-v1 / core-v1 / ladder-v1 / ladder-v2 manifest
 configs/                  generator / models / run 示例
 schemas/                  CLI 导出的 JSON Schema
 tests/                    单元、契约和 24-job mock 集成测试
@@ -68,7 +68,7 @@ uv run bbbench web
 
 这一条命令会同时启动后端 API、前端静态资源服务，并自动打开浏览器。二者共用同一个本地进程和端口，无需另外运行 npm 命令。默认地址为 `http://127.0.0.1:8000/`；服务器环境不应自动打开浏览器时使用 `uv run bbbench web --no-open`。Web 界面包含：
 
-- 从 `smoke-v1` / `core-v1` / `ladder-v1` 选题，按真实形状、旋转和不规则格子图形化摆放；拖动时会实时标出物品占位、效果覆盖范围和当前命中的目标，按住左键拖动时用右键旋转会立即重算预览；类别、基础属性和效果说明均使用直白的中文描述；
+- 从 `smoke-v1` / `core-v1` / `ladder-v1` / `ladder-v2` 选题，按真实形状、旋转和不规则格子图形化摆放；拖动时会实时标出物品占位、效果覆盖范围和当前命中的目标，按住左键拖动时用右键旋转会立即重算预览；类别、基础属性和效果说明均使用直白的中文描述；
 - 随时用后端的同一个严格验证器计算攻击、合法性和 Oracle 比例；
 - 一键载入精确 Oracle 见证，并查看完整模型提示词；
 - 直接在前端填写 OpenAI / Anthropic 兼容 API 的 URL、Key、模型名、思考强度、输出上限和限流参数；填写完成后自动记录，并可选择或删除历史 API；
@@ -132,6 +132,7 @@ difficulty: easy
 - `smoke-v1`：4 道诊断题，供 CI 和本地快速检查。
 - `core-v1`：5 道人工题 + 15 道固定种子生成题，权重均为 `1.0`。
 - `ladder-v1`：专门用于观察区分度的 L1–L5 五级阶梯题，最大背包为 5×5，权重均为 `1.0`。
+- `ladder-v2`：保留原五题，并为每个等级增加两道不同考点的题，共 15 题；旧版不原地修改，以便历史运行可复现。
 - `mixed-3x3` 是最初的 3×3 铁剑/宝石/匕首/魔法阵题，精确最优攻击固定为 **21**。
 
 `ladder-v1` 逐级增加的不是单纯搜索规模，而是需要同时维护的空间约束：
@@ -146,12 +147,15 @@ difficulty: easy
 
 完整设计意图和结构检查见 [`docs/ladder-v1.md`](docs/ladder-v1.md)。实际难度仍应以多模型、多 trial 的得分分布校准，而不是只看 Oracle 求解耗时。
 
+扩展版的 15 个互不重复主考点见 [`docs/ladder-v2.md`](docs/ladder-v2.md)，涵盖纯拼装、非对称方向、重复命中、多来源叠加、遮挡顺序、稀疏距离偏移、负面屏蔽和光束迷宫等能力。
+
 精确求解器预生成合法摆放、去除相同实例排列和等价旋转、允许不放，并对具有安全上界的规则执行分支限界。内置规则还会使用已经固定的来源位置和目标位置计算布局感知上界，避免把已经摆错位置的武器继续当作“仍可能被增益”；重复命中规则另有安全上界回归测试。插件没有声明安全上界时自动退化为完整枚举。Oracle 记录最优攻击、见证、节点数、耗时、求解器版本和场景哈希；Oracle 证明哈希不包含墙钟耗时，因此重新求解不会因机器快慢改变 suite hash。
 
 ```powershell
 uv run bbbench oracle solve .\scenarios\curated\mixed_3x3.yaml --timeout 60
 uv run bbbench generate .\configs\generator.core.yaml
 uv run bbbench suite validate .\suites\ladder-v1.yaml
+uv run bbbench suite validate .\suites\ladder-v2.yaml
 ```
 
 正式题必须在预算内完成精确证明且最优攻击大于 0。生成器使用稳定版本和局部 `random.Random(seed)`；普通生成时候选超时后按确定顺序继续。`core-v1` 还在配置中冻结了已录取的 `candidate_indices`：慢机器会明确失败，而不会悄然换成另一组题。
@@ -206,6 +210,12 @@ uv run bbbench run .\configs\run.all.yaml --dry-run
 
 ```powershell
 uv run bbbench run .\configs\run.ladder.yaml --dry-run
+```
+
+扩展版使用 `configs/run.ladder-v2.yaml`；`2 模型 × 15 题 × 3 trials = 90 jobs`：
+
+```powershell
+uv run bbbench run .\configs\run.ladder-v2.yaml --dry-run
 ```
 
 只有网络异常、HTTP 408/429/5xx 会重试，并遵循 `Retry-After`；响应协议错误、非 JSON、答案结构错误和非法摆放不重试。`--resume RUN_ID` 跳过已完成 job，并继续 pending/running job，不生成重复结果。
@@ -266,6 +276,7 @@ uv run pytest
 uv run bbbench suite validate .\suites\smoke-v1.yaml
 uv run bbbench suite validate .\suites\core-v1.yaml
 uv run bbbench suite validate .\suites\ladder-v1.yaml
+uv run bbbench suite validate .\suites\ladder-v2.yaml
 uv build
 ```
 

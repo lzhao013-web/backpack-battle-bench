@@ -1,0 +1,46 @@
+{
+  "elapsed_seconds": 0.020503899999312125,
+  "exact": true,
+  "nodes_evaluated": 60,
+  "optimal_attack": 28,
+  "scenario_hash": "ea17211555e85fc76f4b21e3a9c85a54ee579a58f7ae239e728a39ba1a6b814e",
+  "scenario_id": "ladder-l2-dual-focus",
+  "schema_version": 1,
+  "solver_id": "enumeration_branch_bound",
+  "solver_version": "1.3.0",
+  "timed_out": false,
+  "witness": {
+    "placements": [
+      {
+        "col": 0,
+        "item_id": "anchor_blade_1",
+        "rotation": 0,
+        "row": 0
+      },
+      {
+        "col": 2,
+        "item_id": "rapier_1",
+        "rotation": 0,
+        "row": 1
+      },
+      {
+        "col": 1,
+        "item_id": "rapier_2",
+        "rotation": 0,
+        "row": 3
+      },
+      {
+        "col": 1,
+        "item_id": "amber_gem_1",
+        "rotation": 90,
+        "row": 2
+      },
+      {
+        "col": 2,
+        "item_id": "azure_gem_1",
+        "rotation": 0,
+        "row": 2
+      }
+    ]
+  }
+}

@@ -60,5 +60,8 @@ jobs:
       - name: Validate ladder suite
         run: uv run --frozen bbbench suite validate suites/ladder-v1.yaml
 
+      - name: Validate expanded ladder suite
+        run: uv run --frozen bbbench suite validate suites/ladder-v2.yaml
+
       - name: Build distributions
         run: uv build

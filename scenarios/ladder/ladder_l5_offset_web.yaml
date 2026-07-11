@@ -1,0 +1,107 @@
+schema_version: 1
+id: ladder-l5-offset-web
+version: 1.0.0
+title: L5 · 星位偏移网
+locale: zh-CN
+board:
+  width: 5
+  height: 5
+  cells:
+    - [0, 1]
+    - [0, 2]
+    - [0, 3]
+    - [1, 0]
+    - [1, 1]
+    - [1, 2]
+    - [1, 3]
+    - [1, 4]
+    - [2, 0]
+    - [2, 1]
+    - [2, 2]
+    - [2, 3]
+    - [2, 4]
+    - [3, 0]
+    - [3, 1]
+    - [3, 2]
+    - [3, 3]
+    - [3, 4]
+    - [4, 1]
+    - [4, 2]
+    - [4, 3]
+items:
+  - id: star_halberd
+    display_name: 星位战戟
+    count: 1
+    shape: [[0, 0], [0, 1], [0, 2], [1, 1]]
+    rotations: [0, 90, 180, 270]
+    category: weapon
+    stats: {attack: 11}
+    effects:
+      - type: adjacent_stat_bonus
+        config:
+          directions: [[-2, 0], [0, 2]]
+          target_category: weapon
+          stat: attack
+          amount: 4
+          once_per_target: true
+      - type: adjacent_stat_bonus
+        config:
+          directions: [[-1, -1], [1, 1]]
+          target_category: weapon
+          stat: attack
+          amount: -3
+          once_per_target: true
+  - id: moon_blade
+    display_name: 月牙弯刃
+    count: 2
+    shape: [[0, 0], [1, 0], [1, 1]]
+    rotations: [0, 90, 180, 270]
+    category: weapon
+    stats: {attack: 7}
+  - id: zigzag_blade
+    display_name: 折线刃
+    count: 1
+    shape: [[0, 1], [0, 2], [1, 0], [1, 1]]
+    rotations: [0, 90]
+    category: weapon
+    stats: {attack: 8}
+  - id: twin_dagger
+    display_name: 双生匕首
+    count: 2
+    shape: [[0, 0], [0, 1]]
+    rotations: [0, 90]
+    category: weapon
+    stats: {attack: 4}
+  - id: constellation_core
+    display_name: 四星定位核
+    count: 1
+    shape: [[0, 0]]
+    rotations: [0]
+    category: support
+    effects:
+      - type: adjacent_stat_bonus
+        config:
+          directions: [[-2, 0], [0, 2], [2, 0], [0, -2]]
+          target_category: weapon
+          stat: attack
+          amount: 3
+          once_per_target: true
+  - id: corner_gem
+    display_name: 转角宝石
+    count: 1
+    shape: [[0, 0]]
+    rotations: [0, 90, 180, 270]
+    category: support
+    effects:
+      - type: adjacent_stat_bonus
+        config:
+          directions: [[-1, 0], [0, 1]]
+          target_category: weapon
+          stat: attack
+          amount: 2
+          once_per_target: true
+objective:
+  type: sum_stat
+  config: {category: weapon, stat: attack}
+tags: [ladder, L5, sparse-offsets, distance-two, diagonal-penalty, multi-effect]
+difficulty: hard
