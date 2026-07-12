@@ -158,7 +158,7 @@ _TOKEN_PART = re.compile(r"[\u3400-\u9fff]|[A-Za-z0-9_]+|[^\sA-Za-z0-9_\u3400-\u
 
 
 def _estimate_output_tokens(value: str) -> int:
-    """Tokenizer-independent estimate used only until the provider reports usage."""
+    """Tokenizer-independent count candidate compared with provider usage."""
     total = 0
     for match in _TOKEN_PART.finditer(value):
         part = match.group(0)
@@ -184,6 +184,24 @@ def _reported_output_tokens(usage: dict[str, Any]) -> int | None:
         return max(0, int(value))
     except (TypeError, ValueError):
         return None
+
+
+def _store_recorded_output_tokens(
+    usage: dict[str, Any],
+    count: int,
+    *,
+    estimated: bool,
+    api_reported: int | None,
+    stream_peak: int,
+) -> None:
+    token_keys = [key for key in ("completion_tokens", "output_tokens") if key in usage]
+    if not token_keys:
+        token_keys = ["output_tokens"]
+    for key in token_keys:
+        usage[key] = count
+    usage["api_output_tokens"] = api_reported
+    usage["stream_output_tokens_peak"] = stream_peak
+    usage["output_tokens_estimated"] = estimated
 
 
 class LiveTokenReporter:
@@ -451,6 +469,14 @@ async def _call_once(
             response_id: str | None = None
             direct_completion: ParsedCompletion | None = None
             parsed_events = 0
+            stream_peak = 0
+            stream_peak_estimated = True
+
+            def observe_stream_count(count: int, estimated: bool) -> None:
+                nonlocal stream_peak, stream_peak_estimated
+                if count > stream_peak or (count == stream_peak and not estimated):
+                    stream_peak = count
+                    stream_peak_estimated = estimated
 
             async for line in response.aiter_lines():
                 raw_lines.append(line)
@@ -506,9 +532,12 @@ async def _call_once(
                         "".join(reasoning_parts) + "".join(content_parts)
                     )
                     event_reported = _reported_output_tokens(parsed.usage)
+                    event_count = max(event_reported or 0, estimated_count)
+                    event_estimated = event_reported is None or estimated_count > event_reported
+                    observe_stream_count(event_count, event_estimated)
                     await token_progress(
-                        event_reported if event_reported is not None else estimated_count,
-                        event_reported is None,
+                        event_count,
+                        event_estimated,
                         False,
                     )
                 else:
@@ -516,9 +545,12 @@ async def _call_once(
                     estimated_count = _estimate_output_tokens(
                         (direct_completion.reasoning or "") + direct_completion.content
                     )
+                    event_count = max(reported or 0, estimated_count)
+                    event_estimated = reported is None or estimated_count > reported
+                    observe_stream_count(event_count, event_estimated)
                     await token_progress(
-                        reported if reported is not None else estimated_count,
-                        reported is None,
+                        event_count,
+                        event_estimated,
                         False,
                     )
 
@@ -555,11 +587,7 @@ async def _call_once(
                         retry_after=None,
                     )
                 estimated_count = _estimate_output_tokens(reasoning + content)
-                reported = _reported_output_tokens(usage)
-                if reported is None or (reported == 0 and estimated_count > 0):
-                    usage["output_tokens"] = estimated_count
-                    usage["output_tokens_estimated"] = True
-                    reported = estimated_count
+                observe_stream_count(estimated_count, True)
                 completion = ParsedCompletion(
                     content=content,
                     reasoning=reasoning or None,
@@ -567,16 +595,28 @@ async def _call_once(
                     usage=usage,
                     response_id=response_id,
                 )
-            final_reported = _reported_output_tokens(completion.usage)
-            final_estimated = bool(completion.usage.get("output_tokens_estimated"))
-            if final_reported is None:
-                final_reported = _estimate_output_tokens(
-                    (completion.reasoning or "") + completion.content
-                )
-                completion.usage["output_tokens"] = final_reported
-                completion.usage["output_tokens_estimated"] = True
+            api_reported = _reported_output_tokens(completion.usage)
+            final_text_estimate = _estimate_output_tokens(
+                (completion.reasoning or "") + completion.content
+            )
+            observe_stream_count(final_text_estimate, True)
+            final_count = max(api_reported or 0, stream_peak)
+            final_estimated = api_reported is None or stream_peak > api_reported
+            if final_count == 0:
+                final_count = final_text_estimate
                 final_estimated = True
-            await token_progress(final_reported, final_estimated, True)
+            if api_reported is not None and api_reported == final_count:
+                final_estimated = False
+            elif stream_peak == final_count:
+                final_estimated = stream_peak_estimated
+            _store_recorded_output_tokens(
+                completion.usage,
+                final_count,
+                estimated=final_estimated,
+                api_reported=api_reported,
+                stream_peak=stream_peak,
+            )
+            await token_progress(final_count, final_estimated, True)
             validation = parse_and_score_output(
                 job.scenario.scenario,
                 completion.content,

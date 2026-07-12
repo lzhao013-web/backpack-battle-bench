@@ -323,8 +323,8 @@ def test_web_can_start_and_report_mock_run(tmp_path: Path, monkeypatch: pytest.M
             assert payload["progress"]["completed"] == 1
             assert len(payload["jobs"]) == 1
             assert all(job["status"] == "completed" for job in payload["jobs"])
-            assert all(job["output_tokens"] == 20 for job in payload["jobs"])
-            assert all(not job["output_tokens_estimated"] for job in payload["jobs"])
+            assert all(job["output_tokens"] > 20 for job in payload["jobs"])
+            assert all(job["output_tokens_estimated"] for job in payload["jobs"])
             assert all(job["actual_attack"] == job["oracle_attack"] for job in payload["jobs"])
             assert all(job["latency_ms"] >= 0 for job in payload["jobs"])
             assert payload["report"]["profiles"][0]["overall_score"] == 100
@@ -336,7 +336,14 @@ def test_web_can_start_and_report_mock_run(tmp_path: Path, monkeypatch: pytest.M
             snapshot = json.loads(data_line.removeprefix("data: "))
             assert snapshot["status"] == "completed"
             assert len(snapshot["jobs"]) == 1
-            assert all(job["output_tokens"] == 20 for job in snapshot["jobs"])
+            assert all(job["output_tokens"] > 20 for job in snapshot["jobs"])
+            summary_path = next(
+                (tmp_path / "data" / "artifacts" / run_id).glob("*/attempt_001/summary.json")
+            )
+            usage = json.loads(summary_path.read_text(encoding="utf-8"))["usage"]
+            assert usage["api_output_tokens"] == 20
+            assert usage["stream_output_tokens_peak"] > usage["api_output_tokens"]
+            assert usage["completion_tokens"] == usage["stream_output_tokens_peak"]
             csv = await client.get(f"/api/run-configs/{config_id}/runs/{run_id}/report?format=csv")
             assert csv.status_code == 200
             html = await client.get(
@@ -538,7 +545,7 @@ def test_web_streams_live_output_token_estimates(
             )
             assert snapshots[-1]["status"] == "completed"
             assert all(
-                job["output_tokens"] == 20 and not job["output_tokens_estimated"]
+                job["output_tokens"] > 20 and job["output_tokens_estimated"]
                 for job in snapshots[-1]["jobs"]
             )
 

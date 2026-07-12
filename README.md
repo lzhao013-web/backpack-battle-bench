@@ -82,7 +82,7 @@ uv run bbbench web
 
 Web 进程也会从项目根目录 `.env` 读取配置文件模式所需的 API key，前端 API 不返回 key 或 `api_key_env`。一个 Web 进程同时只发起一个批跑；题内并发仍由 `run.yaml` 和当前模型配置控制。调试 API 文档位于 `/api/docs`。
 
-OpenAI Chat Completions 与 Anthropic Messages 请求默认使用 SSE 流式响应。模型生成过程中，运行详情会实时显示 tokenizer 无关的 Token 估算值并以 `≈` 标记；流结束后如果服务端返回 usage，则自动替换为准确值，否则保留估算标记。OpenAI 请求会发送 `stream_options.include_usage: true`。
+OpenAI Chat Completions 与 Anthropic Messages 请求默认使用 SSE 流式响应。模型生成过程中，运行详情会实时显示目前观察到的最高输出 Token 数；本地 tokenizer 无关估算值会以 `≈` 标记。流结束后，最终记录值取“流式过程中观察到的最高值”和“API 最终 usage 返回值”中的较大者，避免兼容接口的最终 usage 反而小于流式计数。artifact 中同时保留 `stream_output_tokens_peak` 和 `api_output_tokens` 便于核对；若较大值来自本地估算则继续显示 `≈`。OpenAI 请求会发送 `stream_options.include_usage: true`。
 
 运行详情中的“删除记录”会在二次确认后同时删除 SQLite Run 记录、该 Run 的请求产物和静态报告；运行中的 Run 必须先中断，不能直接删除。
 
