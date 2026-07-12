@@ -2,6 +2,8 @@ import random
 from pathlib import Path
 from typing import Any, ClassVar
 
+from PIL import Image
+
 from backpack_bench.canonical import canonical_json
 from backpack_bench.catalog import load_scenario
 from backpack_bench.domain import EffectEvent, EvaluationContext, PlacedItem
@@ -145,11 +147,29 @@ def test_public_suites_are_exact_and_complete(registry: PluginRegistry) -> None:
     assert all(item.entry.weight == 1.0 for item in smoke.scenarios)
     assert all(item.entry.weight == 1.0 for item in ladder.scenarios)
     assert smoke.suite_hash == "294ab4ca73139e74ca7d97c94fdb4f661776689edf6f739662e9a07d828752ad"
-    assert ladder.suite_hash == "1cd66287a1cc0b8d6a716e4727d2d993f25852cc50d3b01f75ad98cfe9da8c22"
+    assert ladder.suite_hash == "8026a2e88feabb8622c7de67991068541ce99cd59d5527157e2629ae089b0f0d"
     assert all(item.oracle.exact and item.oracle.optimal_attack for item in smoke.scenarios)
     assert all(item.oracle.exact and item.oracle.optimal_attack for item in ladder.scenarios)
     assert smoke.catalog_hash == ladder.catalog_hash
-    assert smoke.visual_pack.pack_hash == ladder.visual_pack.pack_hash
-    assert len(smoke.catalog.items) == len(smoke.visual_pack.spec.assets) == 57
-    assert len(smoke.visual_pack.spec.cards) == 57
-    assert len(smoke.visual_pack.spec.scenario_sheets) == 32
+    assert smoke.visual_pack.pack_hash != ladder.visual_pack.pack_hash
+    assert smoke.visual_pack.spec.status == "placeholder"
+    assert ladder.visual_pack.spec.status == "final"
+    assert ladder.visual_pack.spec.renderer_id == "visual_art_compositor"
+    assert len(smoke.catalog.items) == len(ladder.visual_pack.spec.assets) == 57
+    assert len(ladder.visual_pack.spec.cards) == 57
+    assert len(ladder.visual_pack.spec.scenario_sheets) == 32
+
+    sources = ROOT / "visual-packs" / "visual-art-v1" / "sources"
+    assert len(list(sources.glob("*.png"))) == 57
+    for item in ladder.catalog.items:
+        _, path = ladder.visual_pack.asset(item.id)
+        with Image.open(path) as image:
+            alpha = image.convert("RGBA").getchannel("A")
+            height = max(row for row, _ in item.shape) + 1
+            width = max(col for _, col in item.shape) + 1
+            assert image.size == (width * 256, height * 256)
+            occupied = set(item.shape)
+            for row in range(height):
+                for col in range(width):
+                    expected = 255 if (row, col) in occupied else 0
+                    assert alpha.getpixel((col * 256 + 128, row * 256 + 128)) == expected

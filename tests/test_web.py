@@ -206,7 +206,8 @@ def test_web_scenario_lab_uses_real_validator() -> None:
             assert queried_ids <= html_ids
             suites = (await client.get("/api/suites")).json()
             assert {suite["id"] for suite in suites} == {"smoke-v1", "ladder-v2"}
-            assert all(suite["visual_pack"]["status"] == "placeholder" for suite in suites)
+            statuses = {suite["id"]: suite["visual_pack"]["status"] for suite in suites}
+            assert statuses == {"smoke-v1": "placeholder", "ladder-v2": "final"}
             detail = (await client.get("/api/suites/smoke-v1/scenarios/packing-3x3")).json()
             assert "占用格偏移" not in detail["visual_prompts"]["visual_full"]
             assert "每种物品的占用格、允许旋转、类别" in detail["visual_prompts"]["visual_full"]

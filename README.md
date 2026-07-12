@@ -134,7 +134,7 @@ items:
 
 加载时会把目录定义和库存解析为内部完整场景。场景内容、目录身份、规则插件 ID/版本/配置共同进入 SHA-256；目录、视觉包、提示词、题集和引擎版本也分别记录哈希。视觉包必须覆盖目录中的每个物品，并逐文件校验 SHA-256。
 
-当前 `visual-card-v1` 包含 57 张透明占格 PNG、57 张标准中文物品卡，以及每道题各一张 `visual_shape` 和 `visual_full` 场景图，共 32 张。彩色格表示占用格，灰色叉格表示外接矩形中的空洞；完整卡片同时显示 `0°` 朝向、允许旋转、类别、攻击和效果箭头。当前彩色纹理仍是程序化占位美术，后续可以替换插画而不改变形状蒙版和规则数据。
+`smoke-v1` 继续使用程序化基线包 `visual-card-v1`。`ladder-v2` 已切换到正式美术包 `visual-art-v1`：57 张独立生成的原始物品美术经过确定性合成器缩放，并用目录形状重新施加硬 alpha 蒙版，再生成 57 张中文物品卡和 32 张冻结题面图。即使生成模型画出越界内容，最终图片的占格和空洞仍由 YAML 几何真值决定。完整卡片同时显示 `0°` 朝向、允许旋转、类别、攻击和效果箭头。
 
 `run.yaml` 的 `prompt_mode` 控制输入形式：
 
@@ -183,6 +183,9 @@ uv run bbbench visual scaffold .\catalogs\benchmark-items-v1.yaml `
   --output .\visual-packs\scratch --id scratch-v1
 uv run bbbench visual render-suite .\suites\smoke-v1.yaml .\suites\ladder-v2.yaml `
   --output .\visual-packs\scratch-cards --id scratch-card-v1
+uv run bbbench visual render-suite .\suites\smoke-v1.yaml .\suites\ladder-v2.yaml `
+  --output .\visual-packs\scratch-art --id scratch-art-v1 --cell-size 256 `
+  --art-sources .\visual-packs\visual-art-v1\sources
 uv run bbbench suite validate .\suites\smoke-v1.yaml
 uv run bbbench suite validate .\suites\ladder-v2.yaml
 ```

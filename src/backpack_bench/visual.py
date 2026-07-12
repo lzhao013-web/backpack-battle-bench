@@ -26,6 +26,8 @@ PLACEHOLDER_RENDERER_ID = "shape_svg"
 PLACEHOLDER_RENDERER_VERSION = "1.0.0"
 CARD_RENDERER_ID = "visual_card_png"
 CARD_RENDERER_VERSION = "1.0.0"
+ART_RENDERER_ID = "visual_art_compositor"
+ART_RENDERER_VERSION = "1.0.0"
 
 INK = (31, 41, 55, 255)
 MUTED = (91, 103, 120, 255)
@@ -98,6 +100,34 @@ def render_item_sprite_png(item: ItemDefinitionSpec, cell_size: int = 128) -> Im
     return image
 
 
+def compose_art_sprite_png(
+    item: ItemDefinitionSpec,
+    source: Image.Image,
+    cell_size: int = 256,
+) -> Image.Image:
+    """Resize generated art and enforce the catalog footprint as hard alpha."""
+    height, width = shape_size(item.shape)
+    target_size = (width * cell_size, height * cell_size)
+    artwork = source.convert("RGBA").resize(target_size, Image.Resampling.LANCZOS)
+    mask = Image.new("L", target_size, 0)
+    draw = ImageDraw.Draw(mask)
+    radius = max(8, cell_size // 14)
+    inset = max(1, cell_size // 128)
+    for row, col in item.shape:
+        draw.rounded_rectangle(
+            (
+                col * cell_size + inset,
+                row * cell_size + inset,
+                (col + 1) * cell_size - inset,
+                (row + 1) * cell_size - inset,
+            ),
+            radius=radius,
+            fill=255,
+        )
+    artwork.putalpha(mask)
+    return artwork
+
+
 def _draw_arrow(
     draw: ImageDraw.ImageDraw,
     start: tuple[float, float],
@@ -148,6 +178,19 @@ def _draw_footprint(
     draw.text((left + 12, top + 8), "0° ↑", font=_font(25, True), fill=INK)
     if not effects:
         return
+    if effects:
+        _draw_effect_arrows(draw, item, origin_x, origin_y, width, height, cell)
+
+
+def _draw_effect_arrows(
+    draw: ImageDraw.ImageDraw,
+    item: ItemDefinitionSpec,
+    origin_x: int,
+    origin_y: int,
+    width: int,
+    height: int,
+    cell: int,
+) -> None:
     center = ((origin_x * 2 + width * cell) / 2, (origin_y * 2 + height * cell) / 2)
     for effect in item.effects:
         amount = int(effect.config.get("amount", 0))
@@ -171,6 +214,27 @@ def _draw_footprint(
             )
 
 
+def _draw_art_sprite(
+    image: Image.Image,
+    draw: ImageDraw.ImageDraw,
+    item: ItemDefinitionSpec,
+    sprite: Image.Image,
+    box: tuple[int, int, int, int],
+    *,
+    effects: bool,
+) -> None:
+    left, top, right, bottom = box
+    height, width = shape_size(item.shape)
+    cell = min(96, (right - left - 36) // max(1, width), (bottom - top - 54) // max(1, height))
+    rendered = sprite.resize((width * cell, height * cell), Image.Resampling.LANCZOS)
+    origin_x = (left + right - rendered.width) // 2
+    origin_y = (top + bottom - rendered.height) // 2 + 12
+    image.alpha_composite(rendered, (origin_x, origin_y))
+    draw.text((left + 12, top + 8), "0° ↑", font=_font(25, True), fill=INK)
+    if effects:
+        _draw_effect_arrows(draw, item, origin_x, origin_y, width, height, cell)
+
+
 def _wrapped_lines(text: str, width: int) -> list[str]:
     return textwrap.wrap(text, width=width, break_long_words=True, break_on_hyphens=False) or [""]
 
@@ -183,6 +247,7 @@ def render_item_card_png(
     count: int | None = None,
     local_id: str | None = None,
     detail: bool = True,
+    sprite: Image.Image | None = None,
 ) -> Image.Image:
     card_height = 560
     image = Image.new("RGBA", (720, card_height), PANEL)
@@ -198,7 +263,10 @@ def render_item_card_png(
     rotations = "/".join(f"{value}°" for value in item.rotations)
     draw.text((475, 27), f"旋转 {rotations}", font=_font(21), fill=MUTED)
     footprint_box = (24, 92, 330 if detail else 696, card_height - 25)
-    _draw_footprint(draw, item, footprint_box, effects=detail)
+    if sprite is None:
+        _draw_footprint(draw, item, footprint_box, effects=detail)
+    else:
+        _draw_art_sprite(image, draw, item, sprite, footprint_box, effects=detail)
     if not detail:
         draw.text(
             (355, 112),
@@ -244,6 +312,7 @@ def render_scenario_sheet_png(
     scenario: ScenarioSpec,
     registry: PluginRegistry,
     mode: str = "visual_full",
+    sprites: dict[str, Image.Image] | None = None,
 ) -> Image.Image:
     cards = [
         render_item_card_png(
@@ -253,6 +322,7 @@ def render_scenario_sheet_png(
             count=item.count,
             local_id=item.id,
             detail=mode == "visual_full",
+            sprite=(sprites or {}).get(getattr(item, "catalog_id", None) or item.id),
         )
         for index, item in enumerate(scenario.items)
     ]
@@ -412,17 +482,33 @@ def render_card_visual_pack(
     pack_id: str = "visual-card-v1",
     version: str = "1.0.0",
     cell_size: int = 128,
+    art_sources: Path | None = None,
 ) -> Path:
     """Render catalog sprites/cards plus one frozen multimodal sheet per scenario."""
     output_dir = output_dir.resolve()
     assets: list[VisualAssetSpec] = []
     cards: list[VisualAssetSpec] = []
     scenario_sheets: list[ScenarioVisualAssetSpec] = []
+    rendered_sprites: dict[str, Image.Image] = {}
+    if art_sources is not None:
+        art_sources = art_sources.resolve()
     for item in catalog.items:
         sprite_path = output_dir / "items" / f"{item.id}.png"
         card_path = output_dir / "cards" / f"{item.id}.png"
-        atomic_write_bytes(sprite_path, _png_bytes(render_item_sprite_png(item, cell_size)))
-        atomic_write_bytes(card_path, _png_bytes(render_item_card_png(item, registry)))
+        if art_sources is None:
+            sprite = render_item_sprite_png(item, cell_size)
+        else:
+            source_path = art_sources / f"{item.id}.png"
+            if not source_path.is_file():
+                raise ValueError(f"missing generated art source: {source_path}")
+            with Image.open(source_path) as source:
+                sprite = compose_art_sprite_png(item, source, cell_size)
+        rendered_sprites[item.id] = sprite
+        atomic_write_bytes(sprite_path, _png_bytes(sprite))
+        atomic_write_bytes(
+            card_path,
+            _png_bytes(render_item_card_png(item, registry, sprite=sprite)),
+        )
         assets.append(
             VisualAssetSpec(
                 item_id=item.id,
@@ -442,7 +528,14 @@ def render_card_visual_pack(
             sheet_path = output_dir / "scenarios" / mode / f"{scenario.id}.png"
             atomic_write_bytes(
                 sheet_path,
-                _png_bytes(render_scenario_sheet_png(scenario, registry, mode)),
+                _png_bytes(
+                    render_scenario_sheet_png(
+                        scenario,
+                        registry,
+                        mode,
+                        rendered_sprites,
+                    )
+                ),
             )
             scenario_sheets.append(
                 ScenarioVisualAssetSpec(
@@ -456,10 +549,12 @@ def render_card_visual_pack(
     pack = VisualPackSpec(
         id=pack_id,
         version=version,
-        status="placeholder",
+        status="final" if art_sources is not None else "placeholder",
         item_catalog_hash=item_catalog_hash(catalog),
-        renderer_id=CARD_RENDERER_ID,
-        renderer_version=CARD_RENDERER_VERSION,
+        renderer_id=ART_RENDERER_ID if art_sources is not None else CARD_RENDERER_ID,
+        renderer_version=(
+            ART_RENDERER_VERSION if art_sources is not None else CARD_RENDERER_VERSION
+        ),
         cell_size=cell_size,
         assets=assets,
         cards=cards,

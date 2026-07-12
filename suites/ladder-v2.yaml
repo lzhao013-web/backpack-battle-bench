@@ -5,8 +5,8 @@ title: L1-L5 空间理解阶梯题集
 locale: zh-CN
 item_catalog: ../catalogs/benchmark-items-v1.yaml
 item_catalog_hash: 4ad0c64655607dc5fdf942093aed53ed0102ca921a7fc98aa40d27850cbed7ad
-visual_pack: ../visual-packs/visual-card-v1/manifest.yaml
-visual_pack_hash: 52769465664456168f02cadde8ddd8e07d66b7b3e47412f2d72e6809882cb7fa
+visual_pack: ../visual-packs/visual-art-v1/manifest.yaml
+visual_pack_hash: 157230921e933f94d37bc614f80f5d08a6d4b82c5dbd6d7933e5b62429ea8088
 allowed_plugins:
 - adjacent_stat_bonus
 - ray_stat_bonus

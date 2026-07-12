@@ -198,6 +198,10 @@ def render_suite_visuals(
     pack_id: Annotated[str, typer.Option("--id")] = "visual-card-v1",
     version: Annotated[str, typer.Option("--version")] = "1.0.0",
     cell_size: Annotated[int, typer.Option("--cell-size", min=64, max=256)] = 128,
+    art_sources: Annotated[
+        Path | None,
+        typer.Option("--art-sources", help="Generated PNG source directory"),
+    ] = None,
 ) -> None:
     """Render item cards and complete PNG scenario sheets for one shared catalog."""
     try:
@@ -222,6 +226,7 @@ def render_suite_visuals(
             pack_id,
             version,
             cell_size,
+            art_sources,
         )
         resolved = load_visual_pack(manifest, catalog)
         _print_json(
