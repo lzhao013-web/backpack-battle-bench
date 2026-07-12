@@ -44,6 +44,21 @@ function Invoke-Native {
     }
 }
 
+function Ensure-PagesEnabled {
+    if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
+        Write-Warning "未找到 gh，无法检查 GitHub Pages 是否已启用。"
+        return
+    }
+
+    & gh api "repos/{owner}/{repo}/pages" *> $null
+    if ($LASTEXITCODE -eq 0) {
+        return
+    }
+
+    Write-Host "首次发布：启用 GitHub Pages（GitHub Actions）..." -ForegroundColor Cyan
+    Invoke-Native gh api --method POST "repos/{owner}/{repo}/pages" -f build_type=workflow | Out-Null
+}
+
 function Wait-PagesDeployment {
     param(
         [Parameter(Mandatory)]
@@ -65,8 +80,8 @@ function Wait-PagesDeployment {
             --limit 1 `
             --json databaseId 2>$null
         if ($LASTEXITCODE -eq 0 -and $json) {
-            $runs = $json | ConvertFrom-Json
-            if ($runs.Count -gt 0) {
+            $runs = @($json | ConvertFrom-Json)
+            if ($runs.Count -gt 0 -and $null -ne $runs[0].databaseId) {
                 $runId = $runs[0].databaseId
                 break
             }
@@ -133,6 +148,8 @@ try {
                 throw "'$requiredInHead' 尚未提交。请先提交并推送排行榜基础功能，再用本脚本更新成绩。"
             }
         }
+
+        Ensure-PagesEnabled
     }
 
     if (-not (Test-Path -LiteralPath $Database -PathType Leaf)) {

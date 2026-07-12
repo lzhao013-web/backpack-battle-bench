@@ -40,6 +40,20 @@ require_command() {
     command -v "$1" >/dev/null 2>&1 || die "未找到命令：$1"
 }
 
+ensure_pages_enabled() {
+    if ! command -v gh >/dev/null 2>&1; then
+        printf '警告：未找到 gh，无法检查 GitHub Pages 是否已启用。\n' >&2
+        return
+    fi
+
+    if gh api 'repos/{owner}/{repo}/pages' >/dev/null 2>&1; then
+        return
+    fi
+
+    printf '首次发布：启用 GitHub Pages（GitHub Actions）...\n'
+    gh api --method POST 'repos/{owner}/{repo}/pages' -f build_type=workflow >/dev/null
+}
+
 assert_gitmoji_commit_message() {
     local message="$1"
     local format_pattern='^:[a-z0-9_+-]+: [^[:cntrl:]]+$'
@@ -178,6 +192,8 @@ if [[ "$local_only" == false ]]; then
         git cat-file -e "HEAD:$required_in_head" 2>/dev/null ||
             die "'$required_in_head' 尚未提交。请先提交并推送排行榜基础功能，再用本脚本更新成绩。"
     done
+
+    ensure_pages_enabled
 fi
 
 [[ -f "$database" ]] || die "找不到结果数据库：$database"
