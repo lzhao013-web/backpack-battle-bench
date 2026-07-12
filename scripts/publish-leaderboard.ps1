@@ -5,7 +5,7 @@ param(
     [string]$BuildOutput = ".bbbench/pages",
     [string]$Remote = "origin",
     [string]$Branch = "main",
-    [string]$CommitMessage = ":bar_chart: update public leaderboard",
+    [string]$CommitMessage = ":chart_with_upwards_trend: update public leaderboard",
     [switch]$LocalOnly,
     [switch]$SkipBuild,
     [switch]$NoWait
@@ -13,6 +13,22 @@ param(
 
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
+
+function Assert-GitmojiCommitMessage {
+    param(
+        [Parameter(Mandatory)]
+        [string]$Message
+    )
+
+    $tokens = [regex]::Matches($Message, ":[a-z0-9_+-]+:")
+    if (
+        $Message -notmatch '^:[a-z0-9_+-]+: [^\r\n]+$' -or
+        $tokens.Count -ne 1 -or
+        $Message -match '^:[a-z0-9_+-]+: (\(|[^ ]+:)'
+    ) {
+        throw "提交信息必须使用 '<gitmoji shortcode> <message>' 格式，且只能包含一个 Gitmoji，例如 ':chart_with_upwards_trend: update public leaderboard'。"
+    }
+}
 
 function Invoke-Native {
     param(
@@ -77,6 +93,8 @@ function Wait-PagesDeployment {
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 Push-Location $repoRoot
 try {
+    Assert-GitmojiCommitMessage -Message $CommitMessage
+
     if ($LocalOnly -and -not $PSBoundParameters.ContainsKey("Snapshot")) {
         $Snapshot = ".bbbench/leaderboard-results.local.json"
     }

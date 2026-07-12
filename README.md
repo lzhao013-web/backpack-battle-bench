@@ -140,10 +140,18 @@ uv run bbbench site build --output .\.bbbench\pages
 .\scripts\publish-leaderboard.ps1 -LocalOnly
 ```
 
+```bash
+bash scripts/publish-leaderboard.sh --local-only
+```
+
 更新公开排行榜并触发 GitHub Pages 部署：
 
 ```powershell
 .\scripts\publish-leaderboard.ps1
+```
+
+```bash
+bash scripts/publish-leaderboard.sh
 ```
 
 ## 开发与测试

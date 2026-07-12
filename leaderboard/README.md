@@ -10,6 +10,10 @@
 .\scripts\publish-leaderboard.ps1
 ```
 
+```bash
+bash scripts/publish-leaderboard.sh
+```
+
 脚本会依次导出聚合快照、在本地完整构建一次静态站点、只提交
 `leaderboard/results.json`、推送 `main` 并等待 GitHub Pages 完成。使用 `-NoWait`
 可在推送后立即退出，使用 `-SkipBuild` 可跳过发布前的本地构建验证。
@@ -18,6 +22,10 @@
 
 ```powershell
 .\scripts\publish-leaderboard.ps1 -LocalOnly
+```
+
+```bash
+bash scripts/publish-leaderboard.sh --local-only
 ```
 
 只更新快照而不提交时，仍可直接运行：
