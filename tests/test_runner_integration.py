@@ -167,14 +167,19 @@ class FakeAsyncClient:
             value: dict[str, Any] = {
                 "id": "anthropic-mock",
                 "stop_reason": "end_turn",
-                "content": [{"type": "text", "text": answer}],
+                "content": [{"type": "text", "text": f"```json\n{answer}\n```"}],
                 "usage": {"input_tokens": 100, "output_tokens": 20},
             }
         else:
             value = {
                 "id": "openai-mock",
                 "echo": headers.get("Authorization"),
-                "choices": [{"finish_reason": "stop", "message": {"content": answer}}],
+                "choices": [
+                    {
+                        "finish_reason": "stop",
+                        "message": {"content": f"```json\n{answer}\n```"},
+                    }
+                ],
                 "usage": {
                     "prompt_tokens": 100,
                     "completion_tokens": 20,
@@ -333,6 +338,17 @@ def test_6_job_matrix_retry_and_resume(
         for profile in report["profiles"]
         for scenario in profile["scenarios"]
         for trial in scenario["trial_results"]
+    )
+    normalized_attempts: list[Path] = []
+    for validation_path in plan.artifacts.glob(f"{result['run_id']}/*/attempt_*/validation.json"):
+        validation = json.loads(validation_path.read_text(encoding="utf-8"))
+        if validation.get("normalized_from") == "markdown_json_fence":
+            normalized_attempts.append(validation_path.parent)
+    assert normalized_attempts
+    assert len(normalized_attempts) == 5
+    assert all(
+        (attempt / "model_output.txt").read_text(encoding="utf-8").startswith("```json\n")
+        for attempt in normalized_attempts
     )
     attempts_in_report = [
         attempt

@@ -13,6 +13,28 @@ from backpack_bench.providers.base import (
 )
 from backpack_bench.schemas import ModelProfile
 
+PLACEMENT_ANSWER_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "placements": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "item_id": {"type": "string"},
+                    "row": {"type": "integer"},
+                    "col": {"type": "integer"},
+                    "rotation": {"type": "integer", "enum": [0, 90, 180, 270]},
+                },
+                "required": ["item_id", "row", "col", "rotation"],
+                "additionalProperties": False,
+            },
+        }
+    },
+    "required": ["placements"],
+    "additionalProperties": False,
+}
+
 
 class AnthropicMessagesAdapter:
     def endpoint(self, profile: ModelProfile) -> str:
@@ -60,8 +82,16 @@ class AnthropicMessagesAdapter:
             body["temperature"] = params.temperature
         if params.max_tokens is not None:
             body["max_tokens"] = params.max_tokens
+        output_config: dict[str, Any] = {}
         if params.thinking_effort:
-            body["output_config"] = {"effort": params.thinking_effort}
+            output_config["effort"] = params.thinking_effort
+        if params.json_mode:
+            output_config["format"] = {
+                "type": "json_schema",
+                "schema": PLACEMENT_ANSWER_SCHEMA,
+            }
+        if output_config:
+            body["output_config"] = output_config
         if params.thinking_mode:
             thinking: dict[str, Any] = {"type": params.thinking_mode}
             if params.thinking_budget is not None:

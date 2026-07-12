@@ -1056,7 +1056,7 @@ function resetApiForm() {
   $("#api-qps").value = "1";
   $("#api-retries").value = "3";
   $("#api-verify-tls").checked = true;
-  $("#api-json-mode").checked = false;
+  $("#api-json-mode").checked = true;
   $("#remember-api-key").checked = true;
   syncProtocolFields();
 }
@@ -1085,7 +1085,7 @@ function applyApiHistoryRecord(record) {
   $("#api-qps").value = limits.qps ?? "";
   $("#api-retries").value = limits.retries ?? 3;
   $("#api-verify-tls").checked = profile.verify_tls !== false;
-  $("#api-json-mode").checked = params.json_mode === true;
+  $("#api-json-mode").checked = params.json_mode !== false;
   $("#remember-api-key").checked = record.remember_key !== false;
   syncProtocolFields();
 }

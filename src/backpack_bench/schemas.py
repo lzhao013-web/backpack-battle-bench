@@ -330,7 +330,7 @@ class RequestParams(StrictModel):
     thinking_mode: Literal["adaptive", "enabled", "disabled"] | None = None
     thinking_budget: PositiveInt | None = None
     thinking_display: Literal["summarized", "omitted"] | None = None
-    json_mode: bool = False
+    json_mode: bool = True
     seed: int | None = None
     extra_body: dict[str, Any] = Field(default_factory=dict)
 

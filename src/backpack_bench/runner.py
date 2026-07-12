@@ -357,6 +357,20 @@ def _retry_after(headers: httpx.Headers) -> float | None:
             return None
 
 
+def _validate_completion(
+    job: JobContext,
+    completion: ParsedCompletion,
+    registry: PluginRegistry,
+) -> dict[str, Any]:
+    return parse_and_score_output(
+        job.scenario.scenario,
+        completion.content,
+        registry,
+        finish_reason=completion.finish_reason,
+        allow_markdown_json_fence=job.profile.params.json_mode,
+    )
+
+
 async def _call_once(
     job: JobContext,
     client: httpx.AsyncClient,
@@ -441,12 +455,7 @@ async def _call_once(
                     completion.usage["output_tokens_estimated"] = True
                     reported = estimated
                 await token_progress(reported, token_count_is_estimated, True)
-                validation = parse_and_score_output(
-                    job.scenario.scenario,
-                    completion.content,
-                    registry,
-                    finish_reason=completion.finish_reason,
-                )
+                validation = _validate_completion(job, completion, registry)
                 return AttemptOutcome(
                     retryable=False,
                     error_type=None,
@@ -615,12 +624,7 @@ async def _call_once(
                 stream_peak=stream_peak,
             )
             await token_progress(final_count, final_estimated, True)
-            validation = parse_and_score_output(
-                job.scenario.scenario,
-                completion.content,
-                registry,
-                finish_reason=completion.finish_reason,
-            )
+            validation = _validate_completion(job, completion, registry)
             return AttemptOutcome(
                 retryable=False,
                 error_type=None,

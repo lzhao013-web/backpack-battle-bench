@@ -3,7 +3,10 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from backpack_bench.providers.anthropic import AnthropicMessagesAdapter
+from backpack_bench.providers.anthropic import (
+    PLACEMENT_ANSWER_SCHEMA,
+    AnthropicMessagesAdapter,
+)
 from backpack_bench.providers.base import PromptImage, profile_hash
 from backpack_bench.providers.openai import OpenAIChatAdapter
 from backpack_bench.schemas import ModelProfile
@@ -24,6 +27,7 @@ def test_openai_mapping_and_default_token_limit() -> None:
     assert adapter.headers(profile, None)["Accept"] == "text/event-stream"
     body = adapter.body(profile, "prompt")
     assert body["reasoning_effort"] == "high"
+    assert body["response_format"] == {"type": "json_object"}
     assert body["stream"] is True
     assert body["stream_options"] == {"include_usage": True}
     assert "max_tokens" not in body
@@ -78,7 +82,13 @@ def test_anthropic_adaptive_effort_and_truncation() -> None:
     body = adapter.body(profile, "prompt")
     assert body["stream"] is True
     assert body["thinking"] == {"type": "adaptive"}
-    assert body["output_config"] == {"effort": "high"}
+    assert body["output_config"] == {
+        "effort": "high",
+        "format": {
+            "type": "json_schema",
+            "schema": PLACEMENT_ANSWER_SCHEMA,
+        },
+    }
     parsed = adapter.parse(
         {
             "id": "x",
@@ -120,6 +130,35 @@ def test_anthropic_default_omits_max_tokens() -> None:
     body = AnthropicMessagesAdapter().body(profile, "prompt")
     assert body["stream"] is True
     assert "max_tokens" not in body
+    assert body["output_config"]["format"] == {
+        "type": "json_schema",
+        "schema": PLACEMENT_ANSWER_SCHEMA,
+    }
+
+
+@pytest.mark.parametrize(
+    ("protocol", "adapter", "json_field"),
+    [
+        ("openai_chat", OpenAIChatAdapter(), "response_format"),
+        ("anthropic_messages", AnthropicMessagesAdapter(), "output_config"),
+    ],
+)
+def test_json_mode_can_be_disabled(
+    protocol: str,
+    adapter: OpenAIChatAdapter | AnthropicMessagesAdapter,
+    json_field: str,
+) -> None:
+    profile = ModelProfile.model_validate(
+        {
+            "id": f"{protocol}-no-json",
+            "protocol": protocol,
+            "base_url": "https://example.test/v1",
+            "model": "model",
+            "auth_mode": "none",
+            "params": {"json_mode": False},
+        }
+    )
+    assert json_field not in adapter.body(profile, "prompt")
 
 
 def test_multimodal_image_mapping(tmp_path: Path) -> None:

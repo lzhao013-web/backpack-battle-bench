@@ -8,7 +8,7 @@ profiles:
     api_key_env: OPENAI_COMPATIBLE_API_KEY
     params:
       thinking_effort: medium
-      json_mode: false
+      json_mode: true
     limits:
       concurrency: 10
       qps: 1
@@ -24,6 +24,7 @@ profiles:
       max_tokens: 8192
       thinking_effort: high
       thinking_mode: adaptive
+      json_mode: true
     limits:
       concurrency: 10
       qps: 1

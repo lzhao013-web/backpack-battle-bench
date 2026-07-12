@@ -57,6 +57,35 @@ def test_strict_json_and_error_categories(
     assert schema_error["error_type"] == "answer_schema"
 
 
+def test_single_json_fence_compatibility_is_explicit_and_narrow(
+    smoke_scenario: ScenarioSpec, registry: PluginRegistry
+) -> None:
+    answer = '{"placements": []}'
+    fenced = f"```json\n{answer}\n```"
+    compatible = parse_and_score_output(
+        smoke_scenario,
+        fenced,
+        registry,
+        allow_markdown_json_fence=True,
+    )
+    assert compatible["valid"] is True
+    assert compatible["normalized_from"] == "markdown_json_fence"
+
+    for output in (
+        f"result:\n{fenced}",
+        f"{fenced}\nextra",
+        f"{fenced}\n{fenced}",
+        "```javascript\n{}\n```",
+    ):
+        rejected = parse_and_score_output(
+            smoke_scenario,
+            output,
+            registry,
+            allow_markdown_json_fence=True,
+        )
+        assert rejected["error_type"] == "output_not_json"
+
+
 def test_overlap_and_out_of_bounds(smoke_scenario: ScenarioSpec, registry: PluginRegistry) -> None:
     answer = PlacementAnswer.model_validate(
         {

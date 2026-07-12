@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 from pydantic import ValidationError
@@ -12,6 +13,22 @@ from backpack_bench.domain import EffectEvent, EvaluationContext, PlacedItem
 from backpack_bench.geometry import occupied_cells
 from backpack_bench.plugins import PluginRegistry
 from backpack_bench.schemas import PlacementAnswer, ScenarioSpec
+
+_JSON_CODE_FENCE = re.compile(
+    r"\A[\t\r\n ]*```(?:json)?[\t ]*\r?\n(?P<body>.*?)\r?\n```[\t\r\n ]*\Z",
+    re.IGNORECASE | re.DOTALL,
+)
+
+
+def _single_json_fence_body(model_output: str) -> str | None:
+    match = _JSON_CODE_FENCE.fullmatch(model_output)
+    return match.group("body").strip() if match is not None else None
+
+
+def _record_normalization(result: dict[str, Any], normalized_from: str | None) -> dict[str, Any]:
+    if normalized_from is not None:
+        result["normalized_from"] = normalized_from
+    return result
 
 
 def scenario_hash(scenario: ScenarioSpec, registry: PluginRegistry) -> str:
@@ -174,6 +191,7 @@ def parse_and_score_output(
     model_output: str,
     registry: PluginRegistry,
     finish_reason: str | None = None,
+    allow_markdown_json_fence: bool = False,
 ) -> dict[str, Any]:
     if finish_reason == "length":
         return {
@@ -188,25 +206,41 @@ def parse_and_score_output(
             ],
             "finish_reason": finish_reason,
         }
+    normalized_from: str | None = None
+    if allow_markdown_json_fence:
+        fence_body = _single_json_fence_body(model_output)
+        if fence_body is not None:
+            model_output = fence_body
+            normalized_from = "markdown_json_fence"
     try:
         value = json.loads(model_output)
     except json.JSONDecodeError as error:
         error_type = "output_not_json"
-        return {
-            "valid": False,
-            "error_type": error_type,
-            "actual_attack": 0,
-            "errors": [{"code": error_type, "message": str(error)}],
-        }
+        return _record_normalization(
+            {
+                "valid": False,
+                "error_type": error_type,
+                "actual_attack": 0,
+                "errors": [{"code": error_type, "message": str(error)}],
+            },
+            normalized_from,
+        )
     try:
         answer = PlacementAnswer.model_validate(value)
     except ValidationError as error:
-        return {
-            "valid": False,
-            "error_type": "answer_schema",
-            "actual_attack": 0,
-            "errors": error.errors(include_url=False, include_context=False, include_input=False),
-        }
+        return _record_normalization(
+            {
+                "valid": False,
+                "error_type": "answer_schema",
+                "actual_attack": 0,
+                "errors": error.errors(
+                    include_url=False,
+                    include_context=False,
+                    include_input=False,
+                ),
+            },
+            normalized_from,
+        )
     result = validate_placement_answer(scenario, answer, registry)
     result["finish_reason"] = finish_reason
-    return result
+    return _record_normalization(result, normalized_from)

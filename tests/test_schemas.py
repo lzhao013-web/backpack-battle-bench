@@ -10,6 +10,7 @@ from backpack_bench.schemas import (
     ModelsConfig,
     PlacementAnswer,
     ProviderLimits,
+    RequestParams,
     RunPlan,
     ScenarioDocumentSpec,
     SuiteSpec,
@@ -25,6 +26,7 @@ def test_global_execution_defaults() -> None:
     assert limits.concurrency == 10
     plan = RunPlan(id="defaults", suite="suite.yaml", models="models.yaml")
     assert plan.concurrency == 10
+    assert RequestParams().json_mode is True
     with pytest.raises(ValidationError):
         ProviderLimits(concurrency=11)
     with pytest.raises(ValidationError):

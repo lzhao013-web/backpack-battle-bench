@@ -216,7 +216,7 @@
           "type": "object"
         },
         "json_mode": {
-          "default": false,
+          "default": true,
           "title": "Json Mode",
           "type": "boolean"
         },
