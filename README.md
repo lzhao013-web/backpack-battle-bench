@@ -54,6 +54,8 @@ bbbench suite validate <suite>
 bbbench run <run-config> [--dry-run] [--resume RUN_ID]
 bbbench report <RUN_ID> --format console|json|csv|html
 bbbench leaderboard <suite-id> --format console|json|csv|html
+bbbench site snapshot [--database .bbbench/results.sqlite3]
+bbbench site build [--output .bbbench/pages]
 bbbench web [--host 127.0.0.1] [--port 8000] [--no-open]
 ```
 
@@ -80,11 +82,34 @@ uv run bbbench web
 
 “前端填写 API”模式使用单个前端模型覆盖 `models.yaml` 中的模型矩阵，但仍由所选 `run.yaml` 决定题集、trial、全局并发和产物位置。历史记录保存在当前浏览器的 `localStorage`；“在当前浏览器保存 API Key”可单独关闭。Key 仅在发起或恢复 Run 时传给本地后端并以内存方式使用，不写入 SQLite、artifact、报告或模型配置。切换到“使用 models.yaml / .env”后，行为与 CLI 一致。
 
-Web 进程也会从项目根目录 `.env` 读取配置文件模式所需的 API key，前端 API 不返回 key 或 `api_key_env`。一个 Web 进程同时只发起一个批跑；题内并发仍由 `run.yaml` 和当前模型配置控制。调试 API 文档位于 `/api/docs`。
+Web 进程也会从项目根目录 `.env` 读取配置文件模式所需的 API key，前端 API 不返回 key 或 `api_key_env`。一个 Web 进程可以同时执行多个 Run；每个 Run 的题内并发仍分别由其 `run.yaml` 和模型配置控制，因此多个 Run 的实际请求并发会叠加。运行列表会每秒刷新所有活动 Run 的进度。调试 API 文档位于 `/api/docs`。
+
+### 独立排行榜与 GitHub Pages
+
+公开排行榜是单独构建的纯静态站点，不与上述本地 Web 控制台混合，也不需要 FastAPI。站点包含按题集版本和 `text / visual_shape / visual_full` 赛道隔离的模型排名、逐题能力详情、全部题面图库，以及可在浏览器中拖放、旋转和即时计分的题目实验台。
+
+```powershell
+# 从本地 SQLite 导出不含请求、模型原文和密钥的聚合成绩
+uv run bbbench site snapshot --database .\.bbbench\results.sqlite3
+
+# 构建可直接交给任意静态托管服务的目录
+uv run bbbench site build --output .\.bbbench\pages
+```
+
+`.github/workflows/pages.yml` 会在相关内容推送到 `main` 后构建并发布 GitHub Pages。公开成绩快照位于 `leaderboard/results.json`；题目数据和图片始终从当前已校验题集与视觉包重新生成。
+
+日常更新成绩并部署可直接执行：
+
+```powershell
+.\scripts\publish-leaderboard.ps1
+```
+
+它只暂存排行榜快照，随后提交、推送并等待 Pages workflow；`-NoWait` 可在推送后立即退出。
+发布前只做本地校验可使用 `.\scripts\publish-leaderboard.ps1 -LocalOnly`，临时快照会写入 `.bbbench/`，不会修改公开成绩或执行 Git 操作。
 
 OpenAI Chat Completions 与 Anthropic Messages 请求默认使用 SSE 流式响应。模型生成过程中，运行详情会实时显示目前观察到的最高输出 Token 数；本地 tokenizer 无关估算值会以 `≈` 标记。流结束后，最终记录值取“流式过程中观察到的最高值”和“API 最终 usage 返回值”中的较大者，避免兼容接口的最终 usage 反而小于流式计数。artifact 中同时保留 `stream_output_tokens_peak` 和 `api_output_tokens` 便于核对；若较大值来自本地估算则继续显示 `≈`。OpenAI 请求会发送 `stream_options.include_usage: true`。
 
-运行详情中的“删除记录”会在二次确认后同时删除 SQLite Run 记录、该 Run 的请求产物和静态报告；运行中的 Run 必须先中断，不能直接删除。
+已完成 Run 的任务列表会在每个 `actual_attack=0` 的 Job 行内显示“重跑”按钮，点击后只重新请求该 Job，其他结果保持不动；旧 Attempt 和 artifact 原样保留，新请求从下一个 Attempt 编号继续记录。运行详情中的“删除记录”会在二次确认后同时删除 SQLite Run 记录、该 Run 的请求产物和静态报告；运行中的 Run 必须先中断，不能直接删除。
 
 ## 场景格式
 
@@ -144,9 +169,13 @@ items:
 
 OpenAI Chat Completions 使用 `image_url` data URL；Anthropic Messages 使用 base64 image block。请求 artifact 不保存大段 base64，而是保存 `<omitted:image/png>`，并把原始题面 PNG 单独冻结到 Run 的 `inputs/` 目录。
 
+`json_mode` 默认开启：OpenAI Chat Completions 请求 `response_format: {type: json_object}`；Anthropic Messages 请求带有答案 JSON Schema 的 `output_config.format`。兼容端点若不支持相应结构化输出参数，可在模型 profile 中显式设置 `json_mode: false`。
+
 为避免纯文字和视觉成绩混入同一榜单，视觉运行使用独立榜单 ID，例如 `ladder-v2@visual_full`；纯文字运行继续使用 `ladder-v2`。
 
 模型只能返回严格 JSON，不能带 Markdown：
+
+任意兼容端点在 `json_mode: true` 时若忽略结构化输出约束，运行器会兼容“整个输出恰好是单个 `json`/无语言标记代码围栏”的响应：只在验证前剥离围栏，原始 `model_output.txt` 保持不变，并在 `validation.json` 中记录 `normalized_from: markdown_json_fence`。围栏外有解释文字、多个围栏、其他语言标记或非法 JSON 仍按非 JSON 失败。
 
 ```json
 {
@@ -216,8 +245,8 @@ profiles:
 
 映射规则：
 
-- OpenAI：`thinking_effort` → `reasoning_effort`；
-- Anthropic：`thinking_effort` → `output_config.effort`；
+- OpenAI：`thinking_effort` → `reasoning_effort`，`json_mode` → `response_format`；
+- Anthropic：`thinking_effort` → `output_config.effort`，`json_mode` → `output_config.format`；
 - 前端可选 `minimal / low / medium / high / xhigh / max`，并按原值发送给兼容接口；
 - Anthropic 自适应思考：`thinking_mode: adaptive`；
 - Anthropic 手动思考：`thinking_mode: enabled`、`thinking_budget >= 1024`，且必须配置更大的 `max_tokens`；
