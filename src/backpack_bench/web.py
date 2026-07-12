@@ -418,6 +418,9 @@ def _job_payload(row: dict[str, Any]) -> dict[str, Any]:
         "output_tokens_estimated": output_tokens_estimated,
         "valid": bool(row["valid"]) if has_result else None,
         "error_type": row["error_type"] if has_result else None,
+        "actual_attack": int(row["actual_attack"]) if has_result else None,
+        "oracle_attack": int(row["oracle_attack"]) if has_result else None,
+        "latency_ms": float(row["latency_ms"]) if has_result else None,
         "attempt_count": row["attempt_count"],
     }
 

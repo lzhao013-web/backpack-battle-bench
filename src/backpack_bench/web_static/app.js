@@ -1422,7 +1422,7 @@ function renderRunJobs(jobs) {
   if (!jobs.length) {
     const row = document.createElement("tr");
     const cell = document.createElement("td");
-    cell.colSpan = 5;
+    cell.colSpan = 6;
     cell.className = "empty-cell";
     cell.textContent = "任务尚未展开";
     row.append(cell);
@@ -1435,19 +1435,29 @@ function renderRunJobs(jobs) {
     const status = document.createElement("td");
     status.append(statusBadge(job.status));
     if (job.error_type) status.title = job.error_type;
-    const model = document.createElement("td");
-    model.textContent = job.display_name || job.model;
-    model.title = `${job.profile_id} · ${job.model}`;
     const scenario = document.createElement("td");
     scenario.textContent = job.title || job.scenario_id;
     scenario.title = job.scenario_id;
     const trial = document.createElement("td");
     trial.textContent = String(job.trial);
+    const score = document.createElement("td");
+    score.textContent = job.actual_attack == null
+      ? "—"
+      : `${job.actual_attack} / ${job.oracle_attack}`;
+    score.title = "实际攻击 / Oracle";
+    const latency = document.createElement("td");
+    if (job.latency_ms == null) {
+      latency.textContent = job.status === "running" ? "生成中…" : "—";
+    } else if (job.latency_ms < 1000) {
+      latency.textContent = `${Number(job.latency_ms).toFixed(0)} ms`;
+    } else {
+      latency.textContent = `${(Number(job.latency_ms) / 1000).toFixed(2)} s`;
+    }
     const tokens = document.createElement("td");
     tokens.textContent = job.output_tokens == null
       ? "—"
       : `${job.output_tokens_estimated ? "≈" : ""}${Number(job.output_tokens).toLocaleString("zh-CN")}`;
-    row.append(status, model, scenario, trial, tokens);
+    row.append(status, scenario, trial, score, latency, tokens);
     tbody.append(row);
   });
 }

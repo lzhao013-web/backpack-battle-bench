@@ -431,7 +431,8 @@ class Storage:
                    j.live_output_tokens, j.live_tokens_estimated,
                    p.profile_id, p.display_name, p.model,
                    s.scenario_id, s.title,
-                   r.job_id AS result_job_id, r.valid, r.error_type, r.usage_json,
+                   r.job_id AS result_job_id, r.valid, r.error_type,
+                   r.actual_attack, r.oracle_attack, r.latency_ms, r.usage_json,
                    (SELECT COUNT(*) FROM attempts a WHERE a.job_id=j.job_id) AS attempt_count
             FROM jobs j
             JOIN profiles p ON p.profile_hash=j.profile_hash
