@@ -25,6 +25,7 @@ const state = {
   apiSaveTimer: null,
   selectedRunId: null,
   pollTimer: null,
+  runListTimer: null,
   runEventSource: null,
   runEventRunId: null,
 };
@@ -1293,6 +1294,7 @@ async function loadRunConfig() {
   if (!state.runConfigId) return;
   state.selectedRunId = null;
   stopPolling();
+  stopRunListPolling();
   stopRunStream();
   try {
     state.runPreview = await api(
@@ -1383,10 +1385,34 @@ async function refreshRuns() {
   try {
     const runs = await api(`/api/run-configs/${encodeURIComponent(state.runConfigId)}/runs`);
     renderRunsTable(runs);
+    if (runs.some((run) => runIsActive(run.status))) scheduleRunListPolling();
+    else stopRunListPolling();
     if (state.selectedRunId) await loadRunStatus(state.selectedRunId);
   } catch (error) {
     setRunNotice(error.message, true);
   }
+}
+
+function stopRunListPolling() {
+  if (state.runListTimer) clearTimeout(state.runListTimer);
+  state.runListTimer = null;
+}
+
+function scheduleRunListPolling() {
+  stopRunListPolling();
+  const configId = state.runConfigId;
+  state.runListTimer = setTimeout(async () => {
+    state.runListTimer = null;
+    if (!configId || state.runConfigId !== configId) return;
+    try {
+      const runs = await api(`/api/run-configs/${encodeURIComponent(configId)}/runs`);
+      if (state.runConfigId !== configId) return;
+      renderRunsTable(runs);
+      if (runs.some((run) => runIsActive(run.status))) scheduleRunListPolling();
+    } catch (error) {
+      setRunNotice(error.message, true);
+    }
+  }, 1000);
 }
 
 async function startRun() {
@@ -1573,7 +1599,7 @@ function renderRunProgress(payload) {
   $("#delete-run").hidden = canStop;
   renderRunJobs(payload.jobs || []);
   updateRunListRow(payload);
-  $("#start-run").disabled = runIsActive(payload.status) || !runSourceReady();
+  $("#start-run").disabled = !runSourceReady();
 }
 
 function renderRunDetail(payload) {
@@ -1740,6 +1766,7 @@ async function deleteRun() {
 function bindEvents() {
   window.addEventListener("beforeunload", () => {
     flushApiHistorySave();
+    stopRunListPolling();
     if (state.runEventSource) state.runEventSource.close();
   });
   document.addEventListener("pointermove", handlePointerMove, { passive: false });

@@ -501,6 +501,71 @@ def test_web_can_interrupt_an_active_run(tmp_path: Path, monkeypatch: pytest.Mon
     asyncio.run(exercise())
 
 
+def test_web_can_run_multiple_benchmarks_at_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config_dir = tmp_path / "configs"
+    models = ModelsConfig(
+        profiles=[
+            ModelProfile(
+                id="web-parallel",
+                protocol="openai_chat",
+                base_url=HttpUrl("https://parallel.test/v1"),
+                model="parallel-model",
+                auth_mode="none",
+                limits=ProviderLimits(concurrency=1, retries=0),
+            )
+        ]
+    )
+    atomic_write_yaml(config_dir / "models.yaml", models)
+    atomic_write_yaml(
+        config_dir / "run.yaml",
+        RunPlan(
+            id="web-parallel-runs",
+            suite=str(ROOT / "suites" / "smoke-v1.yaml"),
+            models="models.yaml",
+            trials=1,
+            concurrency=1,
+            database="../data/results.sqlite3",
+            artifacts="../data/artifacts",
+            reports="../data/reports",
+        ),
+    )
+    WebSlowAsyncClient.calls = 0
+    monkeypatch.setattr("backpack_bench.runner.httpx.AsyncClient", WebSlowAsyncClient)
+
+    async def exercise() -> None:
+        app = create_app(tmp_path)
+        transport = httpx.ASGITransport(app=app)
+        async with (
+            app.router.lifespan_context(app),
+            REAL_ASYNC_CLIENT(transport=transport, base_url="http://test") as client,
+        ):
+            config_id = (await client.get("/api/run-configs")).json()[0]["id"]
+            first = await client.post(f"/api/run-configs/{config_id}/runs")
+            second = await client.post(f"/api/run-configs/{config_id}/runs")
+            assert first.status_code == 202
+            assert second.status_code == 202
+            run_ids = {first.json()["run_id"], second.json()["run_id"]}
+            assert len(run_ids) == 2
+
+            for _ in range(100):
+                if WebSlowAsyncClient.calls >= 2:
+                    break
+                await asyncio.sleep(0.01)
+            assert WebSlowAsyncClient.calls >= 2
+            runs = (await client.get(f"/api/run-configs/{config_id}/runs")).json()
+            active = {run["run_id"] for run in runs if run["status"] == "running"}
+            assert active == run_ids
+
+            for run_id in run_ids:
+                stopped = await client.post(f"/api/run-configs/{config_id}/runs/{run_id}/stop")
+                assert stopped.status_code == 202
+                assert stopped.json()["status"] == "interrupted"
+
+    asyncio.run(exercise())
+
+
 def test_web_streams_live_output_token_estimates(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

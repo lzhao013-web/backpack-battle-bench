@@ -117,10 +117,10 @@ class WebRunManager:
             if profile.id not in overrides:
                 resolve_api_key(profile)
         async with self.lock:
-            active = [task for task in self.tasks.values() if not task.done()]
-            if active:
-                raise RuntimeError("已有批跑正在执行；请等待完成或停止 Web 服务后再恢复")
             run_id = resume_run_id or create_run_id(plan)
+            existing = self.tasks.get(run_id)
+            if existing is not None and not existing.done():
+                raise RuntimeError(f"run {run_id} is already running")
             state = ManagedRun(run_id=run_id, config_id=config_id, status="starting")
             self.states[run_id] = state
             task = asyncio.create_task(self._worker(state, plan, resume_run_id, overrides))
