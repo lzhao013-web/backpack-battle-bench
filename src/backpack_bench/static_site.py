@@ -12,6 +12,7 @@ from PIL import Image
 
 from backpack_bench.io import atomic_write_json, atomic_write_text
 from backpack_bench.plugins import PluginRegistry
+from backpack_bench.prompt import render_visual_prompt
 from backpack_bench.reporting import build_run_report
 from backpack_bench.storage import Storage
 from backpack_bench.suite import ResolvedSuite, load_suite
@@ -22,7 +23,7 @@ VISUAL_MODES: tuple[Literal["visual_shape", "visual_full"], ...] = (
     "visual_full",
 )
 SNAPSHOT_VERSION = 1
-SITE_DATA_VERSION = 1
+SITE_DATA_VERSION = 2
 
 
 def _public_scenario_result(value: dict[str, Any]) -> dict[str, Any]:
@@ -230,7 +231,11 @@ def _copy_rotated_item_assets(
     return result
 
 
-def _suite_site_data(suite: ResolvedSuite, output_root: Path) -> dict[str, Any]:
+def _suite_site_data(
+    suite: ResolvedSuite,
+    output_root: Path,
+    registry: PluginRegistry,
+) -> dict[str, Any]:
     asset_root = f"assets/{suite.spec.id}/{suite.visual_pack.pack_hash[:12]}"
     item_paths: dict[str, dict[str, str]] = {}
     used_item_ids = {
@@ -255,6 +260,14 @@ def _suite_site_data(suite: ResolvedSuite, output_root: Path) -> dict[str, Any]:
         scenario = resolved.scenario
         text_prompt_path = f"{asset_root}/scenarios/text/{scenario.id}.txt"
         atomic_write_text(output_root / text_prompt_path, resolved.prompt + "\n")
+        visual_prompts = {
+            mode: render_visual_prompt(scenario, registry, mode) for mode in VISUAL_MODES
+        }
+        visual_prompt_urls: dict[str, str] = {}
+        for mode, prompt in visual_prompts.items():
+            prompt_path = f"{asset_root}/scenarios/{mode}/{scenario.id}.txt"
+            atomic_write_text(output_root / prompt_path, prompt + "\n")
+            visual_prompt_urls[mode] = prompt_path
         sheets = {
             mode: _copy_asset(
                 suite.visual_pack.scenario_sheet(
@@ -301,6 +314,8 @@ def _suite_site_data(suite: ResolvedSuite, output_root: Path) -> dict[str, Any]:
                 "scenario_hash": resolved.entry.scenario_hash,
                 "text_prompt": resolved.prompt,
                 "text_prompt_url": text_prompt_path,
+                "visual_prompts": visual_prompts,
+                "visual_prompt_urls": visual_prompt_urls,
                 "sheets": sheets,
             }
         )
@@ -331,7 +346,10 @@ def build_static_site(
     for name in ("index.html", "app.js", "styles.css"):
         shutil.copy2(source / name, output / name)
     registry = PluginRegistry()
-    suites = [_suite_site_data(suite, output) for suite in _load_public_suites(workspace, registry)]
+    suites = [
+        _suite_site_data(suite, output, registry)
+        for suite in _load_public_suites(workspace, registry)
+    ]
     snapshot_path = (snapshot or workspace / "leaderboard" / "results.json").resolve()
     if snapshot_path.is_file():
         result_data = json.loads(snapshot_path.read_text(encoding="utf-8"))

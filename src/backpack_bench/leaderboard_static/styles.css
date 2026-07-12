@@ -92,8 +92,12 @@ tbody tr.is-experimental { opacity: .68; }
 .scenario-number { display: grid; width: 29px; height: 29px; place-items: center; border-radius: 8px; background: var(--surface-soft); color: var(--muted); font-size: 10px; font-weight: 800; }
 .scenario-index-item.is-selected .scenario-number { background: var(--primary); color: #fff; }
 .scenario-preview { display: grid; overflow: hidden; }
+.scenario-visual-preview { display: grid; min-width: 0; }
 .scenario-preview-image { display: grid; min-height: 430px; max-height: 650px; place-items: start center; overflow: auto; background: var(--surface-soft); }
 .scenario-preview-image img { display: block; width: 100%; height: auto; min-height: 100%; object-fit: contain; object-position: top center; }
+.scenario-attached-prompt { border-top: 1px solid var(--border); background: var(--surface); }
+.scenario-attached-prompt summary { padding: 13px 16px; cursor: pointer; font-size: 12px; font-weight: 750; }
+.scenario-attached-prompt pre { max-height: 380px; margin: 0; padding: 16px; overflow: auto; border-top: 1px solid var(--border); background: var(--surface-soft); color: var(--text); font: 12px/1.7 ui-monospace, SFMono-Regular, Consolas, "Microsoft YaHei", monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
 .scenario-text-preview { height: 650px; padding: 24px clamp(18px,4vw,52px); overflow: auto; background: var(--surface-soft); }
 .scenario-text-preview pre { width: min(880px,100%); margin: 0 auto; color: var(--text); font: 13px/1.75 ui-monospace, SFMono-Regular, Consolas, "Microsoft YaHei", monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
 .scenario-preview-body { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 8px 18px; align-items: center; padding: 16px; border-top: 1px solid var(--border); }
@@ -161,6 +165,7 @@ dialog::backdrop { background: rgba(7, 15, 12, .72); backdrop-filter: blur(4px);
   .scenario-browser { grid-template-columns: 1fr; }
   .scenario-index { max-height: 270px; }
   .scenario-preview-image { min-height: 260px; }
+  .scenario-attached-prompt pre { max-height: 300px; }
   .scenario-text-preview { height: 430px; padding: 16px; }
   .scenario-preview-body { grid-template-columns: 1fr; }
   .scenario-preview-body .scenario-actions { grid-column: 1; grid-row: auto; min-width: 0; }

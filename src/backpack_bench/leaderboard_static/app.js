@@ -342,15 +342,26 @@ function renderScenarioGallery() {
     prompt.textContent = selected.text_prompt;
     previewContent.append(prompt);
   } else {
-    previewContent = document.createElement("a");
-    previewContent.className = "scenario-preview-image";
-    previewContent.href = selected.sheets[mode];
-    previewContent.target = "_blank";
-    previewContent.rel = "noopener";
+    previewContent = document.createElement("div");
+    previewContent.className = "scenario-visual-preview";
+    const imageLink = document.createElement("a");
+    imageLink.className = "scenario-preview-image";
+    imageLink.href = selected.sheets[mode];
+    imageLink.target = "_blank";
+    imageLink.rel = "noopener";
     const image = document.createElement("img");
     image.src = selected.sheets[mode];
     image.alt = `${selected.title} 题面`;
-    previewContent.append(image);
+    imageLink.append(image);
+    const promptPanel = document.createElement("details");
+    promptPanel.className = "scenario-attached-prompt";
+    promptPanel.open = true;
+    const promptSummary = document.createElement("summary");
+    promptSummary.textContent = "与图片一起发送的文字提示词";
+    const prompt = document.createElement("pre");
+    prompt.textContent = selected.visual_prompts?.[mode] || "";
+    promptPanel.append(promptSummary, prompt);
+    previewContent.append(imageLink, promptPanel);
   }
   const body = document.createElement("div");
   body.className = "scenario-preview-body";
@@ -377,7 +388,7 @@ function renderScenarioGallery() {
   full.href = mode === "text" ? selected.text_prompt_url : selected.sheets[mode];
   full.target = "_blank";
   full.rel = "noopener";
-  full.textContent = mode === "text" ? "新窗口查看文字" : "新窗口查看题面";
+  full.textContent = mode === "text" ? "新窗口查看文字" : "新窗口查看图片";
   actions.append(playButton, full);
   body.append(meta, title, facts, actions);
   preview.append(previewContent, body);

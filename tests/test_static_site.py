@@ -48,6 +48,16 @@ def test_static_leaderboard_builds_without_the_web_backend(
         .read_text(encoding="utf-8")
         .startswith(scenario["text_prompt"])
     )
+    assert set(scenario["visual_prompts"]) == {"visual_shape", "visual_full"}
+    for mode, prompt in scenario["visual_prompts"].items():
+        assert "你正在完成一个视觉二维空间规划题" in prompt
+        assert (
+            (output / scenario["visual_prompt_urls"][mode])
+            .read_text(encoding="utf-8")
+            .startswith(prompt)
+        )
+    assert "selected.visual_prompts?.[mode]" in script
+    assert "与图片一起发送的文字提示词" in script
     for instance in scenario["instances"]:
         assert all((output / path).is_file() for path in instance["images"].values())
 
