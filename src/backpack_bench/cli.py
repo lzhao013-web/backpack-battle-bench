@@ -40,6 +40,7 @@ from backpack_bench.schemas import (
     SuiteSpec,
     VisualPackSpec,
 )
+from backpack_bench.static_site import build_static_site, export_results_snapshot
 from backpack_bench.storage import Storage
 from backpack_bench.suite import load_suite
 from backpack_bench.visual import render_card_visual_pack, scaffold_visual_pack
@@ -50,11 +51,13 @@ scenario_app = typer.Typer(no_args_is_help=True)
 oracle_app = typer.Typer(no_args_is_help=True)
 suite_app = typer.Typer(no_args_is_help=True)
 visual_app = typer.Typer(no_args_is_help=True)
+site_app = typer.Typer(no_args_is_help=True)
 app.add_typer(schema_app, name="schema")
 app.add_typer(scenario_app, name="scenario")
 app.add_typer(oracle_app, name="oracle")
 app.add_typer(suite_app, name="suite")
 app.add_typer(visual_app, name="visual")
+app.add_typer(site_app, name="site")
 console = Console()
 
 
@@ -323,6 +326,42 @@ def leaderboard_command(
         finally:
             storage.close()
         _write_or_print_report(value, output_format, output)
+    except Exception as error:
+        _fail(error)
+
+
+@site_app.command("snapshot")
+def site_snapshot_command(
+    workspace: Annotated[Path, typer.Option("--workspace", "-w")] = Path("."),
+    database: Annotated[Path, typer.Option("--database", "-d")] = Path(".bbbench/results.sqlite3"),
+    output: Annotated[Path, typer.Option("--output", "-o")] = Path("leaderboard/results.json"),
+) -> None:
+    """Export aggregate-only public leaderboard results from a local database."""
+    try:
+        path = export_results_snapshot(
+            workspace.resolve(),
+            database.resolve(),
+            output.resolve(),
+        )
+        _print_json({"snapshot": str(path)})
+    except Exception as error:
+        _fail(error)
+
+
+@site_app.command("build")
+def site_build_command(
+    workspace: Annotated[Path, typer.Option("--workspace", "-w")] = Path("."),
+    output: Annotated[Path, typer.Option("--output", "-o")] = Path(".bbbench/pages"),
+    snapshot: Annotated[Path | None, typer.Option("--snapshot")] = None,
+) -> None:
+    """Build the standalone backend-free leaderboard for GitHub Pages."""
+    try:
+        path = build_static_site(
+            workspace.resolve(),
+            output.resolve(),
+            snapshot.resolve() if snapshot is not None else None,
+        )
+        _print_json({"site": str(path), "index": str(path / "index.html")})
     except Exception as error:
         _fail(error)
 

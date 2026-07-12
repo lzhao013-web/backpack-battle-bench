@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Backpack Battle Bench Leaderboard</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <header class="hero">
+    <div>
+      <p class="eyebrow">Backpack Battle Bench</p>
+      <h1>二维空间理解排行榜</h1>
+      <p>公开、可复现的模型成绩，同时开放全部题目供人工试玩与难度检查。</p>
+    </div>
+    <a class="repo-link" href="https://github.com/lzhao013-web/backpack-battle-bench" target="_blank" rel="noopener">GitHub</a>
+  </header>
+
+  <main>
+    <section class="filters" aria-label="排行榜筛选">
+      <label>题集<select id="suite-select"></select></label>
+      <label>赛道
+        <select id="track-select">
+          <option value="visual_full">完整视觉</option>
+          <option value="visual_shape">仅视觉形状</option>
+          <option value="text">纯文字</option>
+        </select>
+      </label>
+    </section>
+
+    <section id="summary" class="summary-grid"></section>
+
+    <section class="panel leaderboard-panel">
+      <div class="section-heading">
+        <div>
+          <h2>模型排行榜</h2>
+          <p id="version-note"></p>
+        </div>
+        <span id="entry-count" class="badge">0 个入榜配置</span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th><button class="sort-button" type="button" data-sort="rank">排名<span>↕</span></button></th>
+            <th><button class="sort-button" type="button" data-sort="model">模型<span>↕</span></button></th>
+            <th><button class="sort-button" type="button" data-sort="thinking_effort">思考<span>↕</span></button></th>
+            <th><button class="sort-button" type="button" data-sort="overall_score">平均分<span>↕</span></button></th>
+            <th><button class="sort-button" type="button" data-sort="best_of_3_score">Best-of-3<span>↕</span></button></th>
+            <th><button class="sort-button" type="button" data-sort="valid_rate">合法率<span>↕</span></button></th>
+            <th><button class="sort-button" type="button" data-sort="optimal_hit_rate">最优命中<span>↕</span></button></th>
+            <th><button class="sort-button" type="button" data-sort="latency_p50_ms">P50<span>↕</span></button></th>
+            <th><button class="sort-button" type="button" data-sort="output_tokens">输出 Token<span>↕</span></button></th>
+            <th><button class="sort-button" type="button" data-sort="estimated_cost">成本<span>↕</span></button></th>
+            <th><button class="sort-button" type="button" data-sort="completed_at">完成时间<span>↕</span></button></th>
+          </tr></thead>
+          <tbody id="leaderboard-body"></tbody>
+        </table>
+      </div>
+      <div id="leaderboard-empty" class="empty" hidden>当前版本与赛道还没有公开的完整 Run。</div>
+    </section>
+
+    <section id="model-detail" class="panel detail-panel" hidden>
+      <div class="section-heading">
+        <div><h2 id="detail-title">模型能力详情</h2><p id="detail-subtitle"></p></div>
+        <button id="close-detail" class="quiet-button" type="button">收起</button>
+      </div>
+      <div id="detail-metrics" class="summary-grid compact"></div>
+      <div id="level-groups" class="level-grid"></div>
+      <h3>逐题表现</h3>
+      <div id="scenario-scores" class="score-grid"></div>
+    </section>
+
+    <section class="scenario-section">
+      <div class="section-heading scenario-heading">
+        <div>
+          <h2>全部题目预览与试玩</h2>
+          <p>先阅读完整题面，再打开实验台拖动物品、右键旋转并即时验证得分。</p>
+        </div>
+        <div class="scenario-filters">
+          <label>难度<select id="difficulty-select"><option value="all">全部</option></select></label>
+          <label>题面<select id="preview-mode"><option value="visual_full">完整视觉</option><option value="visual_shape">仅视觉形状</option><option value="text">纯文字</option></select></label>
+        </div>
+      </div>
+      <div id="scenario-gallery" class="scenario-browser"></div>
+    </section>
+  </main>
+
+  <dialog id="play-dialog">
+    <div class="dialog-shell">
+      <div class="section-heading dialog-heading">
+        <div><p class="eyebrow">交互实验台</p><h2 id="play-title"></h2><p id="play-meta"></p></div>
+        <button id="close-play" class="quiet-button" type="button">关闭</button>
+      </div>
+      <details class="sheet-preview">
+        <summary>查看完整题面</summary>
+        <img id="play-sheet" alt="当前题目的完整视觉题面">
+      </details>
+      <div class="play-layout">
+        <aside class="play-inventory panel">
+          <div class="section-heading"><div><h3>物品实例</h3><p>拖入背包 · 拖动中右键旋转</p></div><span id="play-count" class="badge"></span></div>
+          <div id="play-items" class="item-list"></div>
+          <div id="play-selection" class="selection-info">请选择物品</div>
+        </aside>
+        <section class="play-board-column">
+          <div class="board-title"><h3>背包空间</h3><p>点击格子放置，或直接拖动物品</p></div>
+          <div id="play-board" class="board"></div>
+          <p id="play-message" class="play-message"></p>
+        </section>
+        <aside class="play-score panel">
+          <span>当前攻击</span><strong id="play-score">0</strong><small>Oracle <b id="play-oracle">—</b></small>
+          <div class="score-track"><i id="play-score-fill"></i></div>
+          <div id="play-status" class="play-status">等待布局</div>
+          <button id="load-witness" type="button">载入最优布局</button>
+          <button id="clear-play" class="quiet-button" type="button">清空</button>
+        </aside>
+      </div>
+    </div>
+  </dialog>
+
+  <script src="./app.js" defer></script>
+</body>
+</html>
