@@ -208,6 +208,9 @@ def test_web_scenario_lab_uses_real_validator() -> None:
             assert root.status_code == 200
             assert "Backpack Battle Bench" in root.text
             assert '<option value="xhigh">xhigh</option>' in root.text
+            assert '<option value="text">纯文字</option>' in root.text
+            assert 'id="text-prompt-panel"' in root.text
+            assert "查看发送给模型的完整提示词" not in root.text
             script = (await client.get("/assets/app.js")).text
             styles = await client.get("/assets/styles.css")
             assert styles.status_code == 200

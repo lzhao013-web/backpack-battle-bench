@@ -542,6 +542,14 @@ function renderScenarioStrip() {
 function renderVisualScenarioInput() {
   if (!state.detail) return;
   const mode = $("#visual-sheet-mode").value;
+  const isText = mode === "text";
+  $("#visual-sheet").hidden = isText;
+  $("#visual-prompt-panel").hidden = isText;
+  $("#text-prompt-panel").hidden = !isText;
+  $("#scenario-input-note").textContent = isText
+    ? "这是纯文字赛道实际发送给模型的完整提示词。"
+    : "多模态 Run 会把对应模式的题面图片与下方文字规则一起发送给模型。";
+  if (isText) return;
   $("#visual-sheet").src = state.detail.sheet_urls[mode];
   $("#visual-prompt-text").textContent = state.detail.visual_prompts[mode];
 }

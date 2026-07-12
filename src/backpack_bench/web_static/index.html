@@ -51,21 +51,26 @@
       <div class="scenario-strip" id="scenario-strip" aria-live="polite"></div>
 
       <details class="visual-sheet-panel" open>
-        <summary>视觉题面（visual-card-v1）</summary>
+        <summary>题面与模型输入</summary>
         <div class="visual-sheet-toolbar">
-          <p>多模态 Run 会把对应模式的题面图片与精简文字规则一起发送给模型。</p>
-          <label>预览模式
+          <p id="scenario-input-note">多模态 Run 会把对应模式的题面图片与精简文字规则一起发送给模型。</p>
+          <label>题面
             <select id="visual-sheet-mode">
               <option value="visual_full">完整视觉</option>
               <option value="visual_shape">仅视觉形状</option>
+              <option value="text">纯文字</option>
             </select>
           </label>
         </div>
         <img id="visual-sheet" alt="当前场景的视觉题面">
-        <details class="visual-prompt-panel" open>
+        <details id="visual-prompt-panel" class="visual-prompt-panel" open>
           <summary>与图片一起发送的文字提示词</summary>
           <pre id="visual-prompt-text"></pre>
         </details>
+        <section id="text-prompt-panel" class="text-prompt-panel" hidden>
+          <div class="prompt-meta" id="prompt-meta"></div>
+          <pre id="prompt-text"></pre>
+        </section>
       </details>
 
       <div class="lab-layout">
@@ -121,11 +126,6 @@
         </aside>
       </div>
 
-      <details class="prompt-panel">
-        <summary>查看发送给模型的完整提示词</summary>
-        <div class="prompt-meta" id="prompt-meta"></div>
-        <pre id="prompt-text"></pre>
-      </details>
     </section>
 
     <section id="runs-panel" class="tab-panel" hidden aria-labelledby="runs-heading">
