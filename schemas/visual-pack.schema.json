@@ -1,0 +1,148 @@
+{
+  "$defs": {
+    "ScenarioVisualAssetSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "image": {
+          "title": "Image",
+          "type": "string"
+        },
+        "mode": {
+          "default": "visual_full",
+          "enum": [
+            "visual_shape",
+            "visual_full"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "scenario_hash": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Scenario Hash",
+          "type": "string"
+        },
+        "scenario_id": {
+          "pattern": "^[a-z][a-z0-9_.-]*$",
+          "title": "Scenario Id",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "scenario_id",
+        "scenario_hash",
+        "image",
+        "sha256"
+      ],
+      "title": "ScenarioVisualAssetSpec",
+      "type": "object"
+    },
+    "VisualAssetSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "image": {
+          "title": "Image",
+          "type": "string"
+        },
+        "item_id": {
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Item Id",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "item_id",
+        "image",
+        "sha256"
+      ],
+      "title": "VisualAssetSpec",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "assets": {
+      "items": {
+        "$ref": "#/$defs/VisualAssetSpec"
+      },
+      "title": "Assets",
+      "type": "array"
+    },
+    "cards": {
+      "items": {
+        "$ref": "#/$defs/VisualAssetSpec"
+      },
+      "title": "Cards",
+      "type": "array"
+    },
+    "cell_size": {
+      "default": 128,
+      "exclusiveMinimum": 0,
+      "title": "Cell Size",
+      "type": "integer"
+    },
+    "id": {
+      "pattern": "^[a-z][a-z0-9_.-]*$",
+      "title": "Id",
+      "type": "string"
+    },
+    "item_catalog_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Item Catalog Hash",
+      "type": "string"
+    },
+    "renderer_id": {
+      "title": "Renderer Id",
+      "type": "string"
+    },
+    "renderer_version": {
+      "title": "Renderer Version",
+      "type": "string"
+    },
+    "scenario_sheets": {
+      "items": {
+        "$ref": "#/$defs/ScenarioVisualAssetSpec"
+      },
+      "title": "Scenario Sheets",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "status": {
+      "default": "placeholder",
+      "enum": [
+        "placeholder",
+        "final"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "version": {
+      "title": "Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "version",
+    "item_catalog_hash",
+    "renderer_id",
+    "renderer_version",
+    "assets"
+  ],
+  "title": "VisualPackSpec",
+  "type": "object"
+}

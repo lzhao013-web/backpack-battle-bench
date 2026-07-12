@@ -15,6 +15,7 @@ from pydantic import BaseModel
 from rich.console import Console
 
 from backpack_bench.canonical import text_hash
+from backpack_bench.catalog import load_item_catalog, load_scenario, load_visual_pack
 from backpack_bench.evaluation import scenario_hash
 from backpack_bench.generator import generate as generate_scenarios
 from backpack_bench.io import atomic_write_json, atomic_write_text, load_yaml
@@ -31,24 +32,29 @@ from backpack_bench.reporting import (
 from backpack_bench.runner import dry_run_summary, execute_plan, resolve_plan
 from backpack_bench.schemas import (
     GeneratorSpec,
+    ItemCatalogSpec,
     ModelsConfig,
     PlacementAnswer,
     RunPlan,
-    ScenarioSpec,
+    ScenarioDocumentSpec,
     SuiteSpec,
+    VisualPackSpec,
 )
 from backpack_bench.storage import Storage
 from backpack_bench.suite import load_suite
+from backpack_bench.visual import render_card_visual_pack, scaffold_visual_pack
 
-app = typer.Typer(no_args_is_help=True, help="可扩展、可复现的纯文字二维背包评测。")
+app = typer.Typer(no_args_is_help=True, help="可扩展、可复现的文字/视觉二维背包评测。")
 schema_app = typer.Typer(no_args_is_help=True)
 scenario_app = typer.Typer(no_args_is_help=True)
 oracle_app = typer.Typer(no_args_is_help=True)
 suite_app = typer.Typer(no_args_is_help=True)
+visual_app = typer.Typer(no_args_is_help=True)
 app.add_typer(schema_app, name="schema")
 app.add_typer(scenario_app, name="scenario")
 app.add_typer(oracle_app, name="oracle")
 app.add_typer(suite_app, name="suite")
+app.add_typer(visual_app, name="visual")
 console = Console()
 
 
@@ -67,7 +73,9 @@ def export_schema(
 ) -> None:
     """Export the versioned JSON schemas used by public config files."""
     models: dict[str, type[BaseModel]] = {
-        "scenario.schema.json": ScenarioSpec,
+        "scenario.schema.json": ScenarioDocumentSpec,
+        "item-catalog.schema.json": ItemCatalogSpec,
+        "visual-pack.schema.json": VisualPackSpec,
         "suite.schema.json": SuiteSpec,
         "models.schema.json": ModelsConfig,
         "run.schema.json": RunPlan,
@@ -87,7 +95,8 @@ def validate_scenario(
     """Validate a scenario and render its official prompt."""
     try:
         registry = PluginRegistry()
-        scenario = load_yaml(path.resolve(), ScenarioSpec)
+        loaded = load_scenario(path.resolve())
+        scenario = loaded.scenario
         prompt = render_prompt(scenario, registry)
         result = {
             "valid": True,
@@ -96,6 +105,8 @@ def validate_scenario(
             "prompt_template_version": PROMPT_TEMPLATE_VERSION,
             "prompt_hash": text_hash(prompt),
             "items": sum(item.count for item in scenario.items),
+            "item_catalog_id": loaded.catalog.id,
+            "item_catalog_hash": loaded.catalog_hash,
             "board_cells": len(scenario.board.valid_cells()),
         }
         _print_json(result)
@@ -125,7 +136,7 @@ def solve_oracle(
 ) -> None:
     """Prove the exact optimum for one scenario."""
     try:
-        scenario = load_yaml(scenario_path.resolve(), ScenarioSpec)
+        scenario = load_scenario(scenario_path.resolve()).scenario
         oracle = solve_exact(scenario, PluginRegistry(), timeout)
         if output is not None:
             atomic_write_json(output, oracle)
@@ -150,6 +161,76 @@ def validate_suite(path: Path) -> None:
                 "suite_hash": resolved.suite_hash,
                 "scenarios": len(resolved.scenarios),
                 "total_weight": sum(item.entry.weight for item in resolved.scenarios),
+            }
+        )
+    except Exception as error:
+        _fail(error)
+
+
+@visual_app.command("scaffold")
+def scaffold_visuals(
+    catalog_path: Path,
+    output: Annotated[Path, typer.Option("--output", "-o")],
+    pack_id: Annotated[str, typer.Option("--id")] = "placeholder-v1",
+    version: Annotated[str, typer.Option("--version")] = "1.0.0",
+    cell_size: Annotated[int, typer.Option("--cell-size", min=32, max=1024)] = 128,
+) -> None:
+    """Generate deterministic shape placeholders and a frozen visual-pack manifest."""
+    try:
+        catalog = load_item_catalog(catalog_path.resolve())
+        manifest = scaffold_visual_pack(catalog, output, pack_id, version, cell_size)
+        resolved = load_visual_pack(manifest, catalog)
+        _print_json(
+            {
+                "manifest": str(manifest),
+                "visual_pack_hash": resolved.pack_hash,
+                "assets": len(resolved.spec.assets),
+            }
+        )
+    except Exception as error:
+        _fail(error)
+
+
+@visual_app.command("render-suite")
+def render_suite_visuals(
+    suites: list[Path],
+    output: Annotated[Path, typer.Option("--output", "-o")],
+    pack_id: Annotated[str, typer.Option("--id")] = "visual-card-v1",
+    version: Annotated[str, typer.Option("--version")] = "1.0.0",
+    cell_size: Annotated[int, typer.Option("--cell-size", min=64, max=256)] = 128,
+) -> None:
+    """Render item cards and complete PNG scenario sheets for one shared catalog."""
+    try:
+        registry = PluginRegistry()
+        resolved_suites = [load_suite(path.resolve(), registry) for path in suites]
+        if not resolved_suites:
+            raise ValueError("at least one suite is required")
+        catalog_hashes = {suite.catalog_hash for suite in resolved_suites}
+        if len(catalog_hashes) != 1:
+            raise ValueError("all suites must use the same item catalog")
+        scenarios = {
+            scenario.scenario.id: (scenario.scenario, scenario.entry.scenario_hash)
+            for suite in resolved_suites
+            for scenario in suite.scenarios
+        }
+        catalog = resolved_suites[0].catalog
+        manifest = render_card_visual_pack(
+            catalog,
+            list(scenarios.values()),
+            registry,
+            output,
+            pack_id,
+            version,
+            cell_size,
+        )
+        resolved = load_visual_pack(manifest, catalog)
+        _print_json(
+            {
+                "manifest": str(manifest),
+                "visual_pack_hash": resolved.pack_hash,
+                "assets": len(resolved.spec.assets),
+                "cards": len(resolved.spec.cards),
+                "scenario_sheets": len(resolved.spec.scenario_sheets),
             }
         )
     except Exception as error:

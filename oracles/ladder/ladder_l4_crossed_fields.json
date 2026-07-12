@@ -3,7 +3,7 @@
   "exact": true,
   "nodes_evaluated": 75880,
   "optimal_attack": 74,
-  "scenario_hash": "ccf872df0515422d4451fa055aa7620c7c3863eb5021aadc74510eadfb3abfb3",
+  "scenario_hash": "bfa278b97bfee802d49951779a41d99b7540c3e145c90142966acf8f1e7dbf50",
   "scenario_id": "ladder-l4-crossed-fields",
   "schema_version": 1,
   "solver_id": "enumeration_branch_bound",

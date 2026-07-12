@@ -46,104 +46,38 @@
       "title": "BoardSpec",
       "type": "object"
     },
-    "EffectSpec": {
+    "InventoryEntrySpec": {
       "additionalProperties": false,
       "properties": {
-        "config": {
-          "additionalProperties": true,
-          "title": "Config",
-          "type": "object"
-        },
-        "type": {
-          "minLength": 1,
-          "pattern": "^[a-z][a-z0-9_.-]*$",
-          "title": "Type",
-          "type": "string"
-        }
-      },
-      "required": [
-        "type"
-      ],
-      "title": "EffectSpec",
-      "type": "object"
-    },
-    "ItemTypeSpec": {
-      "additionalProperties": false,
-      "properties": {
-        "category": {
-          "default": "support",
-          "minLength": 1,
-          "title": "Category",
-          "type": "string"
-        },
         "count": {
           "default": 1,
           "exclusiveMinimum": 0,
           "title": "Count",
           "type": "integer"
         },
-        "display_name": {
-          "minLength": 1,
-          "title": "Display Name",
-          "type": "string"
+        "instance_prefix": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Instance Prefix"
         },
-        "effects": {
-          "items": {
-            "$ref": "#/$defs/EffectSpec"
-          },
-          "title": "Effects",
-          "type": "array"
-        },
-        "id": {
-          "minLength": 1,
+        "item_id": {
           "pattern": "^[a-z][a-z0-9_]*$",
-          "title": "Id",
+          "title": "Item Id",
           "type": "string"
-        },
-        "rotations": {
-          "items": {
-            "enum": [
-              0,
-              90,
-              180,
-              270
-            ],
-            "type": "integer"
-          },
-          "title": "Rotations",
-          "type": "array"
-        },
-        "shape": {
-          "items": {
-            "maxItems": 2,
-            "minItems": 2,
-            "prefixItems": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "integer"
-              }
-            ],
-            "type": "array"
-          },
-          "title": "Shape",
-          "type": "array"
-        },
-        "stats": {
-          "additionalProperties": {
-            "type": "integer"
-          },
-          "title": "Stats",
-          "type": "object"
         }
       },
       "required": [
-        "id",
-        "display_name",
-        "shape"
+        "item_id"
       ],
-      "title": "ItemTypeSpec",
+      "title": "InventoryEntrySpec",
       "type": "object"
     },
     "ObjectiveSpec": {
@@ -199,6 +133,7 @@
     }
   },
   "additionalProperties": false,
+  "description": "Public scenario document referencing definitions from an item catalog.",
   "properties": {
     "board": {
       "$ref": "#/$defs/BoardSpec"
@@ -219,12 +154,17 @@
       "title": "Id",
       "type": "string"
     },
-    "items": {
+    "inventory": {
       "items": {
-        "$ref": "#/$defs/ItemTypeSpec"
+        "$ref": "#/$defs/InventoryEntrySpec"
       },
-      "title": "Items",
+      "title": "Inventory",
       "type": "array"
+    },
+    "item_catalog": {
+      "minLength": 1,
+      "title": "Item Catalog",
+      "type": "string"
     },
     "locale": {
       "const": "zh-CN",
@@ -247,8 +187,8 @@
       "default": null
     },
     "schema_version": {
-      "const": 1,
-      "default": 1,
+      "const": 2,
+      "default": 2,
       "title": "Schema Version",
       "type": "integer"
     },
@@ -273,9 +213,10 @@
     "id",
     "title",
     "board",
-    "items",
+    "item_catalog",
+    "inventory",
     "objective"
   ],
-  "title": "ScenarioSpec",
+  "title": "ScenarioDocumentSpec",
   "type": "object"
 }

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import random
 from pathlib import Path
 
@@ -13,8 +14,12 @@ from backpack_bench.schemas import (
     EffectSpec,
     GeneratorOutput,
     GeneratorSpec,
+    InventoryEntrySpec,
+    ItemCatalogSpec,
+    ItemDefinitionSpec,
     ItemTypeSpec,
     ObjectiveSpec,
+    ScenarioDocumentSpec,
     ScenarioProvenance,
     ScenarioSpec,
 )
@@ -30,6 +35,7 @@ SHAPES: tuple[list[tuple[int, int]], ...] = (
 
 
 def _candidate(spec: GeneratorSpec, rng: random.Random, candidate_index: int) -> ScenarioSpec:
+    catalog_prefix = spec.id.replace("-", "_").replace(".", "_")
     height, width = rng.choice(spec.board_sizes)
     board = BoardSpec(width=width, height=height)
     weapon_a_shape = rng.choice([shape for shape in SHAPES if len(shape) <= 3])
@@ -42,6 +48,7 @@ def _candidate(spec: GeneratorSpec, rng: random.Random, candidate_index: int) ->
     items = [
         ItemTypeSpec(
             id="item_a",
+            catalog_id=f"{catalog_prefix}_{candidate_index:04d}_item_a",
             display_name="物品A",
             count=count_a,
             shape=weapon_a_shape,
@@ -50,6 +57,7 @@ def _candidate(spec: GeneratorSpec, rng: random.Random, candidate_index: int) ->
         ),
         ItemTypeSpec(
             id="item_b",
+            catalog_id=f"{catalog_prefix}_{candidate_index:04d}_item_b",
             display_name="物品B",
             count=count_b,
             shape=weapon_b_shape,
@@ -62,6 +70,7 @@ def _candidate(spec: GeneratorSpec, rng: random.Random, candidate_index: int) ->
         items.append(
             ItemTypeSpec(
                 id="item_c",
+                catalog_id=f"{catalog_prefix}_{candidate_index:04d}_item_c",
                 display_name="物品C",
                 count=adjacent_count,
                 shape=[(0, 0)],
@@ -84,6 +93,7 @@ def _candidate(spec: GeneratorSpec, rng: random.Random, candidate_index: int) ->
         items.append(
             ItemTypeSpec(
                 id="item_d",
+                catalog_id=f"{catalog_prefix}_{candidate_index:04d}_item_d",
                 display_name="物品D",
                 count=ray_count,
                 shape=[(0, col) for col in range(ray_length)],
@@ -106,6 +116,7 @@ def _candidate(spec: GeneratorSpec, rng: random.Random, candidate_index: int) ->
         id=f"{spec.id}.{candidate_index:04d}",
         title=f"公开生成题 {candidate_index:04d}",
         board=board,
+        item_catalog_id=f"{spec.id}-items",
         items=items,
         objective=ObjectiveSpec(type="sum_stat", config={"category": "weapon", "stat": "attack"}),
         tags=["generated", f"board-{height}x{width}"],
@@ -126,9 +137,11 @@ def generate(
 ) -> GeneratorOutput:
     scenario_dir = (config_dir / spec.output_dir).resolve()
     oracle_dir = (config_dir / spec.oracle_dir).resolve()
+    catalog_path = (config_dir / spec.catalog_path).resolve()
     rng = random.Random(spec.seed)
     scenarios: list[str] = []
     oracles: list[str] = []
+    catalog_items: list[ItemDefinitionSpec] = []
     candidate_index = 0
     fixed_indices = set(spec.candidate_indices or [])
     max_candidates = max(fixed_indices) if fixed_indices else spec.count * 100
@@ -146,7 +159,38 @@ def generate(
             continue
         scenario_path = scenario_dir / f"{scenario.id}.yaml"
         oracle_path = oracle_dir / f"{scenario.id}.json"
-        atomic_write_yaml(scenario_path, scenario)
+        for item in scenario.items:
+            catalog_items.append(
+                ItemDefinitionSpec(
+                    **item.model_dump(
+                        mode="python",
+                        exclude={"id", "catalog_id", "count"},
+                    ),
+                    id=item.catalog_id or item.id,
+                )
+            )
+        relative_catalog = os.path.relpath(catalog_path, scenario_path.parent).replace("\\", "/")
+        document = ScenarioDocumentSpec(
+            id=scenario.id,
+            version=scenario.version,
+            title=scenario.title,
+            locale=scenario.locale,
+            board=scenario.board,
+            item_catalog=relative_catalog,
+            inventory=[
+                InventoryEntrySpec(
+                    item_id=item.catalog_id or item.id,
+                    count=item.count,
+                    instance_prefix=item.id,
+                )
+                for item in scenario.items
+            ],
+            objective=scenario.objective,
+            tags=scenario.tags,
+            difficulty=scenario.difficulty,
+            provenance=scenario.provenance,
+        )
+        atomic_write_yaml(scenario_path, document)
         atomic_write_json(oracle_path, oracle)
         scenarios.append(str(scenario_path))
         oracles.append(str(oracle_path))
@@ -155,4 +199,14 @@ def generate(
             f"generated {len(scenarios)} exact scenarios after {candidate_index} candidates; "
             f"requested {spec.count}"
         )
-    return GeneratorOutput(scenario_paths=scenarios, oracle_paths=oracles)
+    catalog = ItemCatalogSpec(
+        id=f"{spec.id}-items",
+        version=GENERATOR_VERSION,
+        items=catalog_items,
+    )
+    atomic_write_yaml(catalog_path, catalog)
+    return GeneratorOutput(
+        scenario_paths=scenarios,
+        oracle_paths=oracles,
+        catalog_path=str(catalog_path),
+    )

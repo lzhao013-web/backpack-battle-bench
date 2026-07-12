@@ -3,7 +3,7 @@
   "exact": true,
   "nodes_evaluated": 2519,
   "optimal_attack": 37,
-  "scenario_hash": "5db6fa5a8ab08eb38652fc8f22efa7f397af4c064f27dab291580dc970283b07",
+  "scenario_hash": "7bff8825f8c8a80b7278b478c6e7c389d512054b446d87a4c3c7c3b1005ba042",
   "scenario_id": "ladder-l4-curse-screen",
   "schema_version": 1,
   "solver_id": "enumeration_branch_bound",

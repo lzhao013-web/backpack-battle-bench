@@ -3,7 +3,7 @@
   "exact": true,
   "nodes_evaluated": 60,
   "optimal_attack": 50,
-  "scenario_hash": "05de94c5547b8cb4628ba3337ff9fa7dc5f5f610a8a1dcbbf2e5990130ebaf17",
+  "scenario_hash": "835f2b4095a254144fd0b71f2d340ca85ac4fd92fad61986b965e4c41a72ecb9",
   "scenario_id": "ladder-l3-crossfire",
   "schema_version": 1,
   "solver_id": "enumeration_branch_bound",

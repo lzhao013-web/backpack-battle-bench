@@ -36,6 +36,10 @@
       "default": null,
       "title": "Candidate Indices"
     },
+    "catalog_path": {
+      "title": "Catalog Path",
+      "type": "string"
+    },
     "count": {
       "exclusiveMinimum": 0,
       "title": "Count",
@@ -68,8 +72,8 @@
       "type": "string"
     },
     "schema_version": {
-      "const": 1,
-      "default": 1,
+      "const": 2,
+      "default": 2,
       "title": "Schema Version",
       "type": "integer"
     },
@@ -83,7 +87,8 @@
     "seed",
     "count",
     "output_dir",
-    "oracle_dir"
+    "oracle_dir",
+    "catalog_path"
   ],
   "title": "GeneratorSpec",
   "type": "object"

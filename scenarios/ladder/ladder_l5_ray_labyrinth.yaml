@@ -1,4 +1,4 @@
-schema_version: 1
+schema_version: 2
 id: ladder-l5-ray-labyrinth
 version: 1.0.0
 title: L5 · 光束迷宫
@@ -7,101 +7,73 @@ board:
   width: 5
   height: 5
   cells:
-    - [0, 1]
-    - [0, 2]
-    - [0, 3]
-    - [1, 0]
-    - [1, 1]
-    - [1, 2]
-    - [1, 3]
-    - [1, 4]
-    - [2, 1]
-    - [2, 2]
-    - [2, 3]
-    - [3, 0]
-    - [3, 1]
-    - [3, 2]
-    - [3, 3]
-    - [3, 4]
-    - [4, 1]
-    - [4, 2]
-    - [4, 3]
-items:
-  - id: laser_lance
-    display_name: 激光战枪
-    count: 1
-    shape: [[0, 0], [0, 1], [0, 2], [1, 1]]
-    rotations: [0, 90, 180, 270]
-    category: weapon
-    stats: {attack: 10}
-    effects:
-      - type: ray_stat_bonus
-        config:
-          direction: [-1, 0]
-          target_category: weapon
-          stat: attack
-          amount: 4
-          once_per_target: false
-          blocked: false
-  - id: curse_orb
-    display_name: 诅咒光球
-    count: 1
-    shape: [[0, 0]]
-    rotations: [0, 90, 180, 270]
-    category: weapon
-    stats: {attack: 9}
-    effects:
-      - type: ray_stat_bonus
-        config:
-          direction: [-1, 0]
-          target_category: weapon
-          stat: attack
-          amount: -5
-          once_per_target: true
-          blocked: true
-  - id: l_blade
-    display_name: L形战刃
-    count: 2
-    shape: [[0, 0], [1, 0], [1, 1]]
-    rotations: [0, 90]
-    category: weapon
-    stats: {attack: 7}
-  - id: zigzag_blade
-    display_name: 折线刃
-    count: 1
-    shape: [[0, 1], [0, 2], [1, 0], [1, 1]]
-    rotations: [0, 90]
-    category: weapon
-    stats: {attack: 8}
-  - id: dagger
-    display_name: 双格匕首
-    count: 1
-    shape: [[0, 0], [0, 1]]
-    rotations: [0, 90]
-    category: weapon
-    stats: {attack: 4}
-  - id: mirror_wall
-    display_name: 镜面墙
-    count: 1
-    shape: [[0, 0], [0, 1]]
-    rotations: [0, 90]
-    category: support
-  - id: focus_gem
-    display_name: 聚焦宝石
-    count: 1
-    shape: [[0, 0]]
-    rotations: [0, 90]
-    category: support
-    effects:
-      - type: adjacent_stat_bonus
-        config:
-          directions: [[0, -1], [0, 1]]
-          target_category: weapon
-          stat: attack
-          amount: 3
-          once_per_target: true
+  - - 0
+    - 1
+  - - 0
+    - 2
+  - - 0
+    - 3
+  - - 1
+    - 0
+  - - 1
+    - 1
+  - - 1
+    - 2
+  - - 1
+    - 3
+  - - 1
+    - 4
+  - - 2
+    - 1
+  - - 2
+    - 2
+  - - 2
+    - 3
+  - - 3
+    - 0
+  - - 3
+    - 1
+  - - 3
+    - 2
+  - - 3
+    - 3
+  - - 3
+    - 4
+  - - 4
+    - 1
+  - - 4
+    - 2
+  - - 4
+    - 3
+item_catalog: ../../catalogs/benchmark-items-v1.yaml
+inventory:
+- item_id: laser_lance
+  count: 1
+- item_id: curse_orb
+  count: 1
+- item_id: l_blade_1936e42b
+  count: 2
+  instance_prefix: l_blade
+- item_id: zigzag_blade
+  count: 1
+- item_id: dagger_d107467b
+  count: 1
+  instance_prefix: dagger
+- item_id: mirror_wall
+  count: 1
+- item_id: focus_gem_d8dc8c63
+  count: 1
+  instance_prefix: focus_gem
 objective:
   type: sum_stat
-  config: {category: weapon, stat: attack}
-tags: [ladder, L5, ray-labyrinth, repeated-ray, curse-shielding, over-capacity]
+  config:
+    category: weapon
+    stat: attack
+tags:
+- ladder
+- L5
+- ray-labyrinth
+- repeated-ray
+- curse-shielding
+- over-capacity
 difficulty: hard

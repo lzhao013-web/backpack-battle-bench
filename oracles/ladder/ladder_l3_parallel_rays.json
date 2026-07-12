@@ -3,7 +3,7 @@
   "exact": true,
   "nodes_evaluated": 7272,
   "optimal_attack": 35,
-  "scenario_hash": "8b5cdaedac36ec68e5217b6468c1ca6ff90d5df149eb7baf94eea05645b8f7c5",
+  "scenario_hash": "c1085165e4e6aa6752c529d83f8166555f1c93fe597ef5e47791fac7c0a31ebc",
   "scenario_id": "ladder-l3-parallel-rays",
   "schema_version": 1,
   "solver_id": "enumeration_branch_bound",

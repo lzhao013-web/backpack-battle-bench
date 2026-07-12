@@ -1,0 +1,1167 @@
+schema_version: 1
+id: benchmark-items-v1
+version: 1.0.0
+items:
+- id: great_blade
+  display_name: 大剑
+  shape:
+  - - 0
+    - 0
+  - - 0
+    - 1
+  - - 0
+    - 2
+  rotations:
+  - 0
+  - 90
+  category: weapon
+  stats:
+    attack: 6
+  effects: []
+- id: short_blade
+  display_name: 短剑
+  shape:
+  - - 0
+    - 0
+  - - 0
+    - 1
+  rotations:
+  - 0
+  - 90
+  category: weapon
+  stats:
+    attack: 4
+  effects: []
+- id: charm
+  display_name: 护符
+  shape:
+  - - 0
+    - 0
+  rotations:
+  - 0
+  category: weapon
+  stats:
+    attack: 1
+  effects: []
+- id: dagger_2ded96e3
+  display_name: 小匕首
+  shape:
+  - - 0
+    - 0
+  rotations:
+  - 0
+  category: weapon
+  stats:
+    attack: 2
+  effects: []
+- id: gem_3b5cf10d
+  display_name: 双面宝石
+  shape:
+  - - 0
+    - 0
+  rotations:
+  - 0
+  - 90
+  category: support
+  stats: {}
+  effects:
+  - type: adjacent_stat_bonus
+    config:
+      directions:
+      - - 0
+        - -1
+      - - 0
+        - 1
+      target_category: weapon
+      stat: attack
+      amount: 2
+      once_per_target: true
+- id: l_blade_ecc98c3d
+  display_name: L形短刃
+  shape:
+  - - 0
+    - 0
+  - - 1
+    - 0
+  - - 1
+    - 1
+  rotations:
+  - 0
+  - 90
+  - 180
+  - 270
+  category: weapon
+  stats:
+    attack: 6
+  effects: []
+- id: bar_blade
+  display_name: 三格长刃
+  shape:
+  - - 0
+    - 0
+  - - 0
+    - 1
+  - - 0
+    - 2
+  rotations:
+  - 0
+  - 90
+  category: weapon
+  stats:
+    attack: 5
+  effects: []
+- id: compass
+  display_name: 转角罗盘
+  shape:
+  - - 0
+    - 0
+  rotations:
+  - 0
+  - 90
+  - 180
+  - 270
+  category: support
+  stats: {}
+  effects:
+  - type: adjacent_stat_bonus
+    config:
+      directions:
+      - - -1
+        - 0
+      - - 0
+        - 1
+      target_category: weapon
+      stat: attack
+      amount: 2
+      once_per_target: true
+- id: greatsword_7a983df4
+  display_name: 长剑
+  shape:
+  - - 0
+    - 0
+  - - 0
+    - 1
+  - - 0
+    - 2
+  rotations:
+  - 0
+  - 90
+  category: weapon
+  stats:
+    attack: 8
+  effects: []
+- id: l_blade_69b4b270
+  display_name: L形弯刀
+  shape:
+  - - 0
+    - 0
+  - - 1
+    - 0
+  - - 1
+    - 1
+  rotations:
+  - 0
+  - 90
+  - 180
+  - 270
+  category: weapon
+  stats:
+    attack: 6
+  effects: []
+- id: dagger_8e958c67
+  display_name: 匕首
+  shape:
+  - - 0
+    - 0
+  - - 0
+    - 1
+  rotations:
+  - 0
+  - 90
+  category: weapon
+  stats:
+    attack: 3
+  effects: []
+- id: gem_40cd8697
+  display_name: 聚能宝石
+  shape:
+  - - 0
+    - 0
+  rotations:
+  - 0
+  - 90
+  category: support
+  stats: {}
+  effects:
+  - type: adjacent_stat_bonus
+    config:
+      directions:
+      - - 0
+        - -1
+      - - 0
+        - 1
+      target_category: weapon
+      stat: attack
+      amount: 3
+      once_per_target: true
+- id: crescent_blade
+  display_name: 折角弯刃
+  shape:
+  - - 0
+    - 0
+  - - 1
+    - 0
+  - - 1
+    - 1
+  rotations:
+  - 0
+  - 90
+  - 180
+  - 270
+  category: weapon
+  stats:
+    attack: 6
+  effects: []
+- id: resonance_core
+  display_name: 四向共振核
+  shape:
+  - - 0
+    - 0
+  rotations:
+  - 0
+  category: support
+  stats: {}
+  effects:
+  - type: adjacent_stat_bonus
+    config:
+      directions:
+      - - -1
+        - 0
+      - - 1
+        - 0
+      - - 0
+        - -1
+      - - 0
+        - 1
+      target_category: weapon
+      stat: attack
+      amount: 2
+      once_per_target: false
+- id: anchor_blade
+  display_name: T形锚刃
+  shape:
+  - - 0
+    - 0
+  - - 0
+    - 1
+  - - 0
+    - 2
+  - - 1
+    - 1
+  rotations:
+  - 0
+  - 90
+  - 180
+  - 270
+  category: weapon
+  stats:
+    attack: 10
+  effects: []
+- id: rapier_c7edb176
+  display_name: 细剑
+  shape:
+  - - 0
+    - 0
+  - - 0
+    - 1
+  rotations:
+  - 0
+  - 90
+  category: weapon
+  stats:
+    attack: 4
+  effects: []
+- id: amber_gem
+  display_name: 琥珀横核
+  shape:
+  - - 0
+    - 0
+  rotations:
+  - 0
+  - 90
+  category: support
+  stats: {}
+  effects:
+  - type: adjacent_stat_bonus
+    config:
+      directions:
+      - - 0
+        - -1
+      - - 0
+        - 1
+      target_category: weapon
+      stat: attack
+      amount: 2
+      once_per_target: true
+- id: azure_gem
+  display_name: 湛蓝纵核
+  shape:
+  - - 0
+    - 0
+  rotations:
+  - 0
+  - 90
+  category: support
+  stats: {}
+  effects:
+  - type: adjacent_stat_bonus
+    config:
+      directions:
+      - - -1
+        - 0
+      - - 1
+        - 0
+      target_category: weapon
+      stat: attack
+      amount: 3
+      once_per_target: true
+- id: spear
+  display_name: 长枪
+  shape:
+  - - 0
+    - 0
+  - - 0
+    - 1
+  - - 0
+    - 2
+  rotations:
+  - 0
+  - 90
+  category: weapon
+  stats:
+    attack: 6
+  effects: []
+- id: cleaver
+  display_name: L形战刃
+  shape:
+  - - 0
+    - 0
+  - - 1
+    - 0
+  - - 1
+    - 1
+  rotations:
+  - 0
+  - 90
+  - 180
+  - 270
+  category: weapon
+  stats:
+    attack: 5
+  effects: []
+- id: gem_0a27bf4e
+  display_name: 转向宝石
+  shape:
+  - - 0
+    - 0
+  rotations:
+  - 0
+  - 90
+  category: support
+  stats: {}
+  effects:
+  - type: adjacent_stat_bonus
+    config:
+      directions:
+      - - 0
+        - -1
+      - - 0
+        - 1
+      target_category: weapon
+      stat: attack
+      amount: 3
+      once_per_target: true
+- id: rune_strip
+  display_name: 射线符文
+  shape:
+  - - 0
+    - 0
+  - - 0
+    - 1
+  rotations:
+  - 0
+  - 90
+  - 180
+  - 270
+  category: support
+  stats: {}
+  effects:
+  - type: ray_stat_bonus
+    config:
+      direction:
+      - -1
+      - 0
+      target_category: weapon
+      stat: attack
+      amount: 4
+      once_per_target: true
+      blocked: false
+- id: greatsword_8490ff64
+  display_name: 三格大剑
+  shape:
+  - - 0
+    - 0
+  - - 0
+    - 1
+  - - 0
+    - 2
+  rotations:
+  - 0
+  - 90
+  category: weapon
+  stats:
+    attack: 7
+  effects: []
+- id: blade
+  display_name: 双格战刃
+  shape:
+  - - 0
+    - 0
+  - - 0
+    - 1
+  rotations:
+  - 0
+  - 90
+  category: weapon
+  stats:
+    attack: 4
+  effects: []
+- id: double_beacon
+  display_name: 双路灯塔
+  shape:
+  - - 0
+    - 0
+  - - 0
+    - 1
+  rotations:
+  - 0
+  - 90
+  - 180
+  - 270
+  category: support
+  stats: {}
+  effects:
+  - type: ray_stat_bonus
+    config:
+      direction:
+      - -1
+      - 0
+      target_category: weapon
+      stat: attack
+      amount: 4
+      once_per_target: true
+      blocked: true
+- id: wall
+  display_name: 遮光板
+  shape:
+  - - 0
+    - 0
+  - - 0
+    - 1
+  rotations:
+  - 0
+  - 90
+  category: support
+  stats: {}
+  effects: []
+- id: rapier_163d713c
+  display_name: 双格细剑
+  shape:
+  - - 0
+    - 0
+  - - 0
+    - 1
+  rotations:
+  - 0
+  - 90
+  category: weapon
+  stats:
+    attack: 4
+  effects: []
+- id: prism_bar
+  display_name: 双线棱镜
+  shape:
+  - - 0
+    - 0
+  - - 0
+    - 1
+  rotations:
+  - 0
+  - 90
+  - 180
+  - 270
+  category: support
+  stats: {}
+  effects:
+  - type: ray_stat_bonus
+    config:
+      direction:
+      - -1
+      - 0
+      target_category: weapon
+      stat: attack
+      amount: 3
+      once_per_target: false
+      blocked: false
+- id: cursed_greatsword
+  display_name: 诅咒巨剑
+  shape:
+  - - 0
+    - 0
+  - - 0
+    - 1
+  - - 0
+    - 2
+  - - 0
+    - 3
+  rotations:
+  - 0
+  - 90
+  category: weapon
+  stats:
+    attack: 12
+  effects:
+  - type: adjacent_stat_bonus
+    config:
+      directions:
+      - - -1
+        - 0
+      - - 1
+        - 0
+      - - 0
+        - -1
+      - - 0
+        - 1
+      target_category: weapon
+      stat: attack
+      amount: -3
+      once_per_target: true
+- id: l_blade_ed7e910d
+  display_name: L形重刃
+  shape:
+  - - 0
+    - 0
+  - - 1
+    - 0
+  - - 1
+    - 1
+  rotations:
+  - 0
+  - 90
+  - 180
+  - 270
+  category: weapon
+  stats:
+    attack: 7
+  effects: []
+- id: t_blade_d2a0655e
+  display_name: T形战刃
+  shape:
+  - - 0
+    - 0
+  - - 0
+    - 1
+  - - 0
+    - 2
+  - - 1
+    - 1
+  rotations:
+  - 0
+  - 90
+  - 180
+  - 270
+  category: weapon
+  stats:
+    attack: 9
+  effects: []
+- id: dagger_d107467b
+  display_name: 双格匕首
+  shape:
+  - - 0
+    - 0
+  - - 0
+    - 1
+  rotations:
+  - 0
+  - 90
+  category: weapon
+  stats:
+    attack: 4
+  effects: []
+- id: gem_67bd4b45
+  display_name: 聚能宝石
+  shape:
+  - - 0
+    - 0
+  rotations:
+  - 0
+  - 90
+  category: support
+  stats: {}
+  effects:
+  - type: adjacent_stat_bonus
+    config:
+      directions:
+      - - 0
+        - -1
+      - - 0
+        - 1
+      target_category: weapon
+      stat: attack
+      amount: 4
+      once_per_target: true
+- id: beacon
+  display_name: 阻挡射线阵
+  shape:
+  - - 0
+    - 0
+  - - 0
+    - 1
+  rotations:
+  - 0
+  - 90
+  - 180
+  - 270
+  category: support
+  stats: {}
+  effects:
+  - type: ray_stat_bonus
+    config:
+      direction:
+      - -1
+      - 0
+      target_category: weapon
+      stat: attack
+      amount: 6
+      once_per_target: true
+      blocked: true
+- id: cursed_crown
+  display_name: 诅咒王冠刃
+  shape:
+  - - 0
+    - 0
+  - - 0
+    - 1
+  - - 0
+    - 2
+  - - 1
+    - 0
+  rotations:
+  - 0
+  category: weapon
+  stats:
+    attack: 15
+  effects:
+  - type: ray_stat_bonus
+    config:
+      direction:
+      - 1
+      - 0
+      target_category: weapon
+      stat: attack
+      amount: -5
+      once_per_target: true
+      blocked: true
+- id: l_blade_93222129
+  display_name: L形战刃
+  shape:
+  - - 0
+    - 0
+  - - 1
+    - 0
+  - - 1
+    - 1
+  rotations:
+  - 0
+  - 90
+  - 180
+  - 270
+  category: weapon
+  stats:
+    attack: 7
+  effects: []
+- id: screen
+  display_name: 单格屏风
+  shape:
+  - - 0
+    - 0
+  rotations:
+  - 0
+  category: support
+  stats: {}
+  effects: []
+- id: eclipse_spear
+  display_name: 日蚀长枪
+  shape:
+  - - 0
+    - 0
+  - - 0
+    - 1
+  - - 0
+    - 2
+  rotations:
+  - 0
+  - 90
+  - 180
+  - 270
+  category: weapon
+  stats:
+    attack: 13
+  effects:
+  - type: ray_stat_bonus
+    config:
+      direction:
+      - -1
+      - 0
+      target_category: weapon
+      stat: attack
+      amount: -4
+      once_per_target: true
+      blocked: false
+- id: t_blade_ecb720d5
+  display_name: T形重刃
+  shape:
+  - - 0
+    - 0
+  - - 0
+    - 1
+  - - 0
+    - 2
+  - - 1
+    - 1
+  rotations:
+  - 0
+  - 90
+  - 180
+  - 270
+  category: weapon
+  stats:
+    attack: 9
+  effects: []
+- id: sun_prism
+  display_name: 太阳棱镜
+  shape:
+  - - 0
+    - 0
+  - - 0
+    - 1
+  rotations:
+  - 0
+  - 90
+  - 180
+  - 270
+  category: support
+  stats: {}
+  effects:
+  - type: ray_stat_bonus
+    config:
+      direction:
+      - -1
+      - 0
+      target_category: weapon
+      stat: attack
+      amount: 5
+      once_per_target: true
+      blocked: false
+- id: warped_halberd
+  display_name: 扭曲战戟
+  shape:
+  - - 0
+    - 0
+  - - 0
+    - 1
+  - - 0
+    - 2
+  - - 1
+    - 1
+  rotations:
+  - 0
+  - 90
+  - 180
+  - 270
+  category: weapon
+  stats:
+    attack: 10
+  effects:
+  - type: adjacent_stat_bonus
+    config:
+      directions:
+      - - 0
+        - -1
+      - - 0
+        - 1
+      target_category: weapon
+      stat: attack
+      amount: 3
+      once_per_target: true
+  - type: adjacent_stat_bonus
+    config:
+      directions:
+      - - -1
+        - 0
+      - - 1
+        - 0
+      target_category: weapon
+      stat: attack
+      amount: -3
+      once_per_target: true
+- id: hook_blade
+  display_name: 钩形剑
+  shape:
+  - - 0
+    - 0
+  - - 1
+    - 0
+  - - 1
+    - 1
+  rotations:
+  - 0
+  - 90
+  - 180
+  - 270
+  category: weapon
+  stats:
+    attack: 7
+  effects: []
+- id: zigzag_blade
+  display_name: 折线刃
+  shape:
+  - - 0
+    - 1
+  - - 0
+    - 2
+  - - 1
+    - 0
+  - - 1
+    - 1
+  rotations:
+  - 0
+  - 90
+  category: weapon
+  stats:
+    attack: 8
+  effects: []
+- id: twin_dagger
+  display_name: 双生匕首
+  shape:
+  - - 0
+    - 0
+  - - 0
+    - 1
+  rotations:
+  - 0
+  - 90
+  category: weapon
+  stats:
+    attack: 4
+  effects: []
+- id: cursed_idol
+  display_name: 诅咒偶像
+  shape:
+  - - 0
+    - 0
+  rotations:
+  - 0
+  - 90
+  - 180
+  - 270
+  category: weapon
+  stats:
+    attack: 9
+  effects:
+  - type: ray_stat_bonus
+    config:
+      direction:
+      - -1
+      - 0
+      target_category: weapon
+      stat: attack
+      amount: -5
+      once_per_target: true
+      blocked: true
+- id: focus_gem_f97cedde
+  display_name: 聚焦宝石
+  shape:
+  - - 0
+    - 0
+  rotations:
+  - 0
+  - 90
+  category: support
+  stats: {}
+  effects:
+  - type: adjacent_stat_bonus
+    config:
+      directions:
+      - - 0
+        - -1
+      - - 0
+        - 1
+      target_category: weapon
+      stat: attack
+      amount: 4
+      once_per_target: true
+- id: prism_array
+  display_name: L形棱镜阵
+  shape:
+  - - 0
+    - 0
+  - - 1
+    - 0
+  - - 1
+    - 1
+  rotations:
+  - 0
+  - 90
+  - 180
+  - 270
+  category: support
+  stats: {}
+  effects:
+  - type: ray_stat_bonus
+    config:
+      direction:
+      - -1
+      - 0
+      target_category: weapon
+      stat: attack
+      amount: 5
+      once_per_target: true
+      blocked: false
+- id: shield_wall
+  display_name: 护盾墙
+  shape:
+  - - 0
+    - 0
+  - - 0
+    - 1
+  rotations:
+  - 0
+  - 90
+  category: support
+  stats: {}
+  effects: []
+- id: star_halberd
+  display_name: 星位战戟
+  shape:
+  - - 0
+    - 0
+  - - 0
+    - 1
+  - - 0
+    - 2
+  - - 1
+    - 1
+  rotations:
+  - 0
+  - 90
+  - 180
+  - 270
+  category: weapon
+  stats:
+    attack: 11
+  effects:
+  - type: adjacent_stat_bonus
+    config:
+      directions:
+      - - -2
+        - 0
+      - - 0
+        - 2
+      target_category: weapon
+      stat: attack
+      amount: 4
+      once_per_target: true
+  - type: adjacent_stat_bonus
+    config:
+      directions:
+      - - -1
+        - -1
+      - - 1
+        - 1
+      target_category: weapon
+      stat: attack
+      amount: -3
+      once_per_target: true
+- id: moon_blade
+  display_name: 月牙弯刃
+  shape:
+  - - 0
+    - 0
+  - - 1
+    - 0
+  - - 1
+    - 1
+  rotations:
+  - 0
+  - 90
+  - 180
+  - 270
+  category: weapon
+  stats:
+    attack: 7
+  effects: []
+- id: constellation_core
+  display_name: 四星定位核
+  shape:
+  - - 0
+    - 0
+  rotations:
+  - 0
+  category: support
+  stats: {}
+  effects:
+  - type: adjacent_stat_bonus
+    config:
+      directions:
+      - - -2
+        - 0
+      - - 0
+        - 2
+      - - 2
+        - 0
+      - - 0
+        - -2
+      target_category: weapon
+      stat: attack
+      amount: 3
+      once_per_target: true
+- id: corner_gem
+  display_name: 转角宝石
+  shape:
+  - - 0
+    - 0
+  rotations:
+  - 0
+  - 90
+  - 180
+  - 270
+  category: support
+  stats: {}
+  effects:
+  - type: adjacent_stat_bonus
+    config:
+      directions:
+      - - -1
+        - 0
+      - - 0
+        - 1
+      target_category: weapon
+      stat: attack
+      amount: 2
+      once_per_target: true
+- id: laser_lance
+  display_name: 激光战枪
+  shape:
+  - - 0
+    - 0
+  - - 0
+    - 1
+  - - 0
+    - 2
+  - - 1
+    - 1
+  rotations:
+  - 0
+  - 90
+  - 180
+  - 270
+  category: weapon
+  stats:
+    attack: 10
+  effects:
+  - type: ray_stat_bonus
+    config:
+      direction:
+      - -1
+      - 0
+      target_category: weapon
+      stat: attack
+      amount: 4
+      once_per_target: false
+      blocked: false
+- id: curse_orb
+  display_name: 诅咒光球
+  shape:
+  - - 0
+    - 0
+  rotations:
+  - 0
+  - 90
+  - 180
+  - 270
+  category: weapon
+  stats:
+    attack: 9
+  effects:
+  - type: ray_stat_bonus
+    config:
+      direction:
+      - -1
+      - 0
+      target_category: weapon
+      stat: attack
+      amount: -5
+      once_per_target: true
+      blocked: true
+- id: l_blade_1936e42b
+  display_name: L形战刃
+  shape:
+  - - 0
+    - 0
+  - - 1
+    - 0
+  - - 1
+    - 1
+  rotations:
+  - 0
+  - 90
+  category: weapon
+  stats:
+    attack: 7
+  effects: []
+- id: mirror_wall
+  display_name: 镜面墙
+  shape:
+  - - 0
+    - 0
+  - - 0
+    - 1
+  rotations:
+  - 0
+  - 90
+  category: support
+  stats: {}
+  effects: []
+- id: focus_gem_d8dc8c63
+  display_name: 聚焦宝石
+  shape:
+  - - 0
+    - 0
+  rotations:
+  - 0
+  - 90
+  category: support
+  stats: {}
+  effects:
+  - type: adjacent_stat_bonus
+    config:
+      directions:
+      - - 0
+        - -1
+      - - 0
+        - 1
+      target_category: weapon
+      stat: attack
+      amount: 3
+      once_per_target: true

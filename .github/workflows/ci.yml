@@ -54,13 +54,7 @@ jobs:
       - name: Validate smoke suite
         run: uv run --frozen bbbench suite validate suites/smoke-v1.yaml
 
-      - name: Validate core suite
-        run: uv run --frozen bbbench suite validate suites/core-v1.yaml
-
       - name: Validate ladder suite
-        run: uv run --frozen bbbench suite validate suites/ladder-v1.yaml
-
-      - name: Validate expanded ladder suite
         run: uv run --frozen bbbench suite validate suites/ladder-v2.yaml
 
       - name: Build distributions

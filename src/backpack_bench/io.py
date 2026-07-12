@@ -48,6 +48,21 @@ def atomic_write_text(path: Path, text: str) -> None:
             temporary_path.unlink()
 
 
+def atomic_write_bytes(path: Path, data: bytes) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temporary_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
+    temporary_path = Path(temporary_name)
+    try:
+        with os.fdopen(descriptor, "wb") as file:
+            file.write(data)
+            file.flush()
+            os.fsync(file.fileno())
+        os.replace(temporary_path, path)
+    finally:
+        if temporary_path.exists():
+            temporary_path.unlink()
+
+
 def atomic_write_json(path: Path, value: Any) -> None:
     if isinstance(value, BaseModel):
         value = value.model_dump(mode="json", exclude_none=True)

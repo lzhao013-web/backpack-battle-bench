@@ -3,7 +3,7 @@
   "exact": true,
   "nodes_evaluated": 26,
   "optimal_attack": 16,
-  "scenario_hash": "26bffc6efd803f01993fb11aa1df3d74faa8e2382605d6b331d1548fd035dd8c",
+  "scenario_hash": "9c48c14d12bd0c866b5e37c6774fdf5c9046db89f7c019a42a92fcdcb0b131bd",
   "scenario_id": "ladder-l1-compass",
   "schema_version": 1,
   "solver_id": "enumeration_branch_bound",

@@ -3,7 +3,7 @@
   "exact": true,
   "nodes_evaluated": 28,
   "optimal_attack": 16,
-  "scenario_hash": "e02e811c3ca3e05efbce6dea564e996541cfab842adfda3a360a51519e83262e",
+  "scenario_hash": "1cee3c8ff545565605edc21a5ec2629de5eb3b53bb64b8961c3f780e2895c62b",
   "scenario_id": "ladder-l1-adjacency",
   "schema_version": 1,
   "solver_id": "enumeration_branch_bound",

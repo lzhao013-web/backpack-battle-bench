@@ -1,13 +1,14 @@
 [project]
 name = "backpack-battle-bench"
 version = "1.0.0"
-description = "Text-only 2D backpack layout benchmark and validator"
+description = "Text and multimodal 2D backpack layout benchmark and validator"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.115,<1",
     "httpx>=0.28,<1",
+    "pillow>=11,<13",
     "pydantic>=2.11,<3",
     "pyyaml>=6,<7",
     "python-dotenv>=1.0,<2",

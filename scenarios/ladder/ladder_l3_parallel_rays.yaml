@@ -1,4 +1,4 @@
-schema_version: 1
+schema_version: 2
 id: ladder-l3-parallel-rays
 version: 1.0.0
 title: L3 · 平行穿透
@@ -6,45 +6,28 @@ locale: zh-CN
 board:
   width: 4
   height: 4
-items:
-  - id: greatsword
-    display_name: 三格大剑
-    count: 1
-    shape: [[0, 0], [0, 1], [0, 2]]
-    rotations: [0, 90]
-    category: weapon
-    stats: {attack: 7}
-  - id: rapier
-    display_name: 双格细剑
-    count: 2
-    shape: [[0, 0], [0, 1]]
-    rotations: [0, 90]
-    category: weapon
-    stats: {attack: 4}
-  - id: dagger
-    display_name: 小匕首
-    count: 1
-    shape: [[0, 0]]
-    rotations: [0]
-    category: weapon
-    stats: {attack: 2}
-  - id: prism_bar
-    display_name: 双线棱镜
-    count: 1
-    shape: [[0, 0], [0, 1]]
-    rotations: [0, 90, 180, 270]
-    category: support
-    effects:
-      - type: ray_stat_bonus
-        config:
-          direction: [-1, 0]
-          target_category: weapon
-          stat: attack
-          amount: 3
-          once_per_target: false
-          blocked: false
+item_catalog: ../../catalogs/benchmark-items-v1.yaml
+inventory:
+- item_id: greatsword_8490ff64
+  count: 1
+  instance_prefix: greatsword
+- item_id: rapier_163d713c
+  count: 2
+  instance_prefix: rapier
+- item_id: dagger_2ded96e3
+  count: 1
+  instance_prefix: dagger
+- item_id: prism_bar
+  count: 1
 objective:
   type: sum_stat
-  config: {category: weapon, stat: attack}
-tags: [ladder, L3, parallel-rays, penetrating-ray, repeated-hit]
+  config:
+    category: weapon
+    stat: attack
+tags:
+- ladder
+- L3
+- parallel-rays
+- penetrating-ray
+- repeated-hit
 difficulty: medium

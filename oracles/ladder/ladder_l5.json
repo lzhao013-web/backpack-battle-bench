@@ -3,7 +3,7 @@
   "exact": true,
   "nodes_evaluated": 9783,
   "optimal_attack": 71,
-  "scenario_hash": "8ddc7bf83d7507d507012d0c7fa6b89461f6ea182233689bf271a4a6bbd36280",
+  "scenario_hash": "143bc02e3848baf24df50ba213bcb3579fe008035ed1f63ff28d35871157d11f",
   "scenario_id": "ladder-l5-prism-maze",
   "schema_version": 1,
   "solver_id": "enumeration_branch_bound",

@@ -1,4 +1,4 @@
-schema_version: 1
+schema_version: 2
 id: ladder-l1-compass
 version: 1.0.0
 title: L1 · 转角罗盘
@@ -6,37 +6,24 @@ locale: zh-CN
 board:
   width: 3
   height: 3
-items:
-  - id: short_sword
-    display_name: 短剑
-    count: 2
-    shape: [[0, 0], [0, 1]]
-    rotations: [0, 90]
-    category: weapon
-    stats: {attack: 4}
-  - id: dagger
-    display_name: 小匕首
-    count: 2
-    shape: [[0, 0]]
-    rotations: [0]
-    category: weapon
-    stats: {attack: 2}
-  - id: compass
-    display_name: 转角罗盘
-    count: 1
-    shape: [[0, 0]]
-    rotations: [0, 90, 180, 270]
-    category: support
-    effects:
-      - type: adjacent_stat_bonus
-        config:
-          directions: [[-1, 0], [0, 1]]
-          target_category: weapon
-          stat: attack
-          amount: 2
-          once_per_target: true
+item_catalog: ../../catalogs/benchmark-items-v1.yaml
+inventory:
+- item_id: short_blade
+  count: 2
+  instance_prefix: short_sword
+- item_id: dagger_2ded96e3
+  count: 2
+  instance_prefix: dagger
+- item_id: compass
+  count: 1
 objective:
   type: sum_stat
-  config: {category: weapon, stat: attack}
-tags: [ladder, L1, asymmetric-adjacency, direction-rotation]
+  config:
+    category: weapon
+    stat: attack
+tags:
+- ladder
+- L1
+- asymmetric-adjacency
+- direction-rotation
 difficulty: easy

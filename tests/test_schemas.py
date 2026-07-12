@@ -5,11 +5,13 @@ from pydantic import BaseModel
 
 from backpack_bench.schemas import (
     GeneratorSpec,
+    ItemCatalogSpec,
     ModelsConfig,
     PlacementAnswer,
     RunPlan,
-    ScenarioSpec,
+    ScenarioDocumentSpec,
     SuiteSpec,
+    VisualPackSpec,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -17,7 +19,9 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def test_committed_json_schemas_are_current() -> None:
     models: dict[str, type[BaseModel]] = {
-        "scenario.schema.json": ScenarioSpec,
+        "scenario.schema.json": ScenarioDocumentSpec,
+        "item-catalog.schema.json": ItemCatalogSpec,
+        "visual-pack.schema.json": VisualPackSpec,
         "suite.schema.json": SuiteSpec,
         "models.schema.json": ModelsConfig,
         "run.schema.json": RunPlan,

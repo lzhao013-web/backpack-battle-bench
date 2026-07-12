@@ -3,10 +3,11 @@ from pathlib import Path
 from typing import Any, ClassVar
 
 from backpack_bench.canonical import canonical_json
+from backpack_bench.catalog import load_scenario
 from backpack_bench.domain import EffectEvent, EvaluationContext, PlacedItem
 from backpack_bench.evaluation import scenario_hash
 from backpack_bench.generator import _candidate, generate
-from backpack_bench.io import load_json, load_yaml
+from backpack_bench.io import load_json
 from backpack_bench.oracle import oracle_hash, solve_exact
 from backpack_bench.plugins import PluginRegistry
 from backpack_bench.schemas import (
@@ -50,15 +51,15 @@ class NoBoundEffectHandler:
         return None
 
 
-def test_exact_solver_proves_ray_optimum(registry: PluginRegistry) -> None:
-    scenario = load_yaml(ROOT / "scenarios" / "curated" / "ray_3x3.yaml", ScenarioSpec)
+def test_exact_solver_proves_smoke_optimum(registry: PluginRegistry) -> None:
+    scenario = load_scenario(ROOT / "scenarios" / "smoke" / "packing_3x3.yaml").scenario
     oracle = solve_exact(scenario, registry, timeout_seconds=10)
     assert oracle.exact
-    assert oracle.optimal_attack == 21
+    assert oracle.optimal_attack == 18
 
 
 def test_oracle_hash_excludes_wall_clock_telemetry() -> None:
-    oracle = load_json(ROOT / "oracles" / "curated" / "ray_3x3.json", OracleArtifact)
+    oracle = load_json(ROOT / "oracles" / "smoke" / "packing_3x3.json", OracleArtifact)
     slower = oracle.model_copy(update={"elapsed_seconds": oracle.elapsed_seconds + 123.0})
     assert oracle_hash(oracle) == oracle_hash(slower)
 
@@ -71,6 +72,7 @@ def test_generator_candidate_is_seed_deterministic(registry: PluginRegistry) -> 
         board_sizes=[(3, 3), (4, 4)],
         output_dir="out",
         oracle_dir="oracle",
+        catalog_path="catalog.yaml",
     )
     first = _candidate(spec, random.Random(spec.seed), 1)
     second = _candidate(spec, random.Random(spec.seed), 1)
@@ -89,18 +91,26 @@ def test_full_generator_writes_identical_scenarios(
         oracle_timeout_seconds=10,
         output_dir="first/scenarios",
         oracle_dir="first/oracles",
+        catalog_path="first/catalog.yaml",
     )
     first = generate(base, tmp_path, registry)
     second = generate(
-        base.model_copy(update={"output_dir": "second/scenarios", "oracle_dir": "second/oracles"}),
+        base.model_copy(
+            update={
+                "output_dir": "second/scenarios",
+                "oracle_dir": "second/oracles",
+                "catalog_path": "second/catalog.yaml",
+            }
+        ),
         tmp_path,
         registry,
     )
     first_path = Path(first.scenario_paths[0])
     second_path = Path(second.scenario_paths[0])
     assert first_path.read_bytes() == second_path.read_bytes()
-    first_scenario = load_yaml(first_path, ScenarioSpec)
-    second_scenario = load_yaml(second_path, ScenarioSpec)
+    assert Path(first.catalog_path).read_bytes() == Path(second.catalog_path).read_bytes()
+    first_scenario = load_scenario(first_path).scenario
+    second_scenario = load_scenario(second_path).scenario
     assert scenario_hash(first_scenario, registry) == scenario_hash(second_scenario, registry)
 
 
@@ -129,31 +139,17 @@ def test_solver_falls_back_when_plugin_has_no_upper_bound(registry: PluginRegist
 
 def test_public_suites_are_exact_and_complete(registry: PluginRegistry) -> None:
     smoke = load_suite(ROOT / "suites" / "smoke-v1.yaml", registry)
-    core = load_suite(ROOT / "suites" / "core-v1.yaml", registry)
-    ladder = load_suite(ROOT / "suites" / "ladder-v1.yaml", registry)
-    expanded_ladder = load_suite(ROOT / "suites" / "ladder-v2.yaml", registry)
-    assert len(smoke.scenarios) == 4
-    assert len(core.scenarios) == 20
-    assert len(ladder.scenarios) == 5
-    assert len(expanded_ladder.scenarios) == 15
-    assert all(item.entry.weight == 1.0 for item in core.scenarios)
+    ladder = load_suite(ROOT / "suites" / "ladder-v2.yaml", registry)
+    assert len(smoke.scenarios) == 1
+    assert len(ladder.scenarios) == 15
+    assert all(item.entry.weight == 1.0 for item in smoke.scenarios)
     assert all(item.entry.weight == 1.0 for item in ladder.scenarios)
-    assert all(item.entry.weight == 1.0 for item in expanded_ladder.scenarios)
-    assert smoke.suite_hash == "607017adff4960d25efbfeec5772d3b3a52300714e1a32fc73671f81cb176904"
-    assert core.suite_hash == "90f9ddc8182a3597d0c7a13f9ca02fcd66ff587f25a24d2ba8b48f671b152468"
-    assert ladder.suite_hash == "4e838684c27018b78e09de86a63a543d6543151d99b7e19e9c62e7d416b60918"
-    assert (
-        expanded_ladder.suite_hash
-        == "ff68e7cacf578531b7e16d7457b87b727a9ea3cd315d87dc562bacf3a595c2ba"
-    )
-    assert all(item.oracle.exact and item.oracle.optimal_attack for item in core.scenarios)
+    assert smoke.suite_hash == "294ab4ca73139e74ca7d97c94fdb4f661776689edf6f739662e9a07d828752ad"
+    assert ladder.suite_hash == "1cd66287a1cc0b8d6a716e4727d2d993f25852cc50d3b01f75ad98cfe9da8c22"
+    assert all(item.oracle.exact and item.oracle.optimal_attack for item in smoke.scenarios)
     assert all(item.oracle.exact and item.oracle.optimal_attack for item in ladder.scenarios)
-    assert all(
-        item.oracle.exact and item.oracle.optimal_attack for item in expanded_ladder.scenarios
-    )
-    generated = [item.scenario for item in core.scenarios if item.scenario.provenance is not None]
-    assert len(generated) == 15
-    assert sum(item.scenario.provenance is None for item in core.scenarios) == 5
-    assert all((item.board.height, item.board.width) in {(3, 3), (4, 4)} for item in generated)
-    assert all(sum(part.count for part in item.items) <= 8 for item in generated)
-    assert all(1 <= len(part.shape) <= 4 for item in generated for part in item.items)
+    assert smoke.catalog_hash == ladder.catalog_hash
+    assert smoke.visual_pack.pack_hash == ladder.visual_pack.pack_hash
+    assert len(smoke.catalog.items) == len(smoke.visual_pack.spec.assets) == 57
+    assert len(smoke.visual_pack.spec.cards) == 57
+    assert len(smoke.visual_pack.spec.scenario_sheets) == 32

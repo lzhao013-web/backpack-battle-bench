@@ -3,7 +3,7 @@
   "exact": true,
   "nodes_evaluated": 80,
   "optimal_attack": 25,
-  "scenario_hash": "87988dca3aa18313adc3c74644d7bca071fcd4fb5b029490762a331320a7c656",
+  "scenario_hash": "4fbb0667f6595e12c7ee993c1220074e896d6d014e1d108207392f66b3efbd2b",
   "scenario_id": "ladder-l2-resonance",
   "schema_version": 1,
   "solver_id": "enumeration_branch_bound",

@@ -1,4 +1,4 @@
-schema_version: 1
+schema_version: 2
 id: ladder-l1-shape-lock
 version: 1.0.0
 title: L1 · 九格拼刃
@@ -6,30 +6,25 @@ locale: zh-CN
 board:
   width: 3
   height: 3
-items:
-  - id: l_blade
-    display_name: L形短刃
-    count: 1
-    shape: [[0, 0], [1, 0], [1, 1]]
-    rotations: [0, 90, 180, 270]
-    category: weapon
-    stats: {attack: 6}
-  - id: bar_blade
-    display_name: 三格长刃
-    count: 1
-    shape: [[0, 0], [0, 1], [0, 2]]
-    rotations: [0, 90]
-    category: weapon
-    stats: {attack: 5}
-  - id: dagger
-    display_name: 小匕首
-    count: 3
-    shape: [[0, 0]]
-    rotations: [0]
-    category: weapon
-    stats: {attack: 2}
+item_catalog: ../../catalogs/benchmark-items-v1.yaml
+inventory:
+- item_id: l_blade_ecc98c3d
+  count: 1
+  instance_prefix: l_blade
+- item_id: bar_blade
+  count: 1
+- item_id: dagger_2ded96e3
+  count: 3
+  instance_prefix: dagger
 objective:
   type: sum_stat
-  config: {category: weapon, stat: attack}
-tags: [ladder, L1, exact-fill, pure-packing, rotation]
+  config:
+    category: weapon
+    stat: attack
+tags:
+- ladder
+- L1
+- exact-fill
+- pure-packing
+- rotation
 difficulty: easy

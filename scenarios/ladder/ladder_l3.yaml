@@ -1,4 +1,4 @@
-schema_version: 1
+schema_version: 2
 id: ladder-l3-crossfire
 version: 1.0.0
 title: L3 · 交叉火力
@@ -6,59 +6,30 @@ locale: zh-CN
 board:
   width: 4
   height: 4
-items:
-  - id: spear
-    display_name: 长枪
-    count: 1
-    shape: [[0, 0], [0, 1], [0, 2]]
-    rotations: [0, 90]
-    category: weapon
-    stats: {attack: 6}
-  - id: cleaver
-    display_name: L形战刃
-    count: 2
-    shape: [[0, 0], [1, 0], [1, 1]]
-    rotations: [0, 90, 180, 270]
-    category: weapon
-    stats: {attack: 5}
-  - id: rapier
-    display_name: 细剑
-    count: 2
-    shape: [[0, 0], [0, 1]]
-    rotations: [0, 90]
-    category: weapon
-    stats: {attack: 4}
-  - id: gem
-    display_name: 转向宝石
-    count: 1
-    shape: [[0, 0]]
-    rotations: [0, 90]
-    category: support
-    effects:
-      - type: adjacent_stat_bonus
-        config:
-          directions: [[0, -1], [0, 1]]
-          target_category: weapon
-          stat: attack
-          amount: 3
-          once_per_target: true
-  - id: rune_strip
-    display_name: 射线符文
-    count: 1
-    shape: [[0, 0], [0, 1]]
-    rotations: [0, 90, 180, 270]
-    category: support
-    effects:
-      - type: ray_stat_bonus
-        config:
-          direction: [-1, 0]
-          target_category: weapon
-          stat: attack
-          amount: 4
-          once_per_target: true
-          blocked: false
+item_catalog: ../../catalogs/benchmark-items-v1.yaml
+inventory:
+- item_id: spear
+  count: 1
+- item_id: cleaver
+  count: 2
+- item_id: rapier_c7edb176
+  count: 2
+  instance_prefix: rapier
+- item_id: gem_0a27bf4e
+  count: 1
+  instance_prefix: gem
+- item_id: rune_strip
+  count: 1
 objective:
   type: sum_stat
-  config: {category: weapon, stat: attack}
-tags: [ladder, L3, rotation, adjacency, ray, selection]
+  config:
+    category: weapon
+    stat: attack
+tags:
+- ladder
+- L3
+- rotation
+- adjacency
+- ray
+- selection
 difficulty: medium

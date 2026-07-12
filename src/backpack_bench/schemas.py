@@ -92,10 +92,9 @@ class EffectSpec(StrictModel):
     config: dict[str, Any] = Field(default_factory=dict)
 
 
-class ItemTypeSpec(StrictModel):
+class ItemDefinitionSpec(StrictModel):
     id: str = Field(min_length=1, pattern=r"^[a-z][a-z0-9_]*$")
     display_name: str = Field(min_length=1)
-    count: PositiveInt = 1
     shape: list[Cell]
     rotations: list[Rotation] = Field(default_factory=default_rotations)
     category: str = Field(default="support", min_length=1)
@@ -125,6 +124,42 @@ class ItemTypeSpec(StrictModel):
         return value
 
 
+class ItemTypeSpec(ItemDefinitionSpec):
+    """Resolved scenario item with a local instance prefix and catalog identity."""
+
+    catalog_id: str | None = Field(default=None, pattern=r"^[a-z][a-z0-9_]*$")
+    count: PositiveInt = 1
+
+    @model_validator(mode="after")
+    def default_catalog_id(self) -> ItemTypeSpec:
+        if self.catalog_id is None:
+            self.catalog_id = self.id
+        return self
+
+
+class ItemCatalogSpec(StrictModel):
+    schema_version: Literal[1] = 1
+    id: str = Field(pattern=r"^[a-z][a-z0-9_.-]*$")
+    version: str
+    items: list[ItemDefinitionSpec]
+
+    @model_validator(mode="after")
+    def validate_items(self) -> ItemCatalogSpec:
+        ids = [item.id for item in self.items]
+        if not ids or len(ids) != len(set(ids)):
+            raise ValueError("item catalog ids must be non-empty and unique")
+        return self
+
+
+class InventoryEntrySpec(StrictModel):
+    item_id: str = Field(pattern=r"^[a-z][a-z0-9_]*$")
+    count: PositiveInt = 1
+    instance_prefix: str | None = Field(default=None, pattern=r"^[a-z][a-z0-9_]*$")
+
+    def local_id(self) -> str:
+        return self.instance_prefix or self.item_id
+
+
 class ObjectiveSpec(StrictModel):
     type: str = Field(default="sum_stat", min_length=1, pattern=r"^[a-z][a-z0-9_.-]*$")
     config: dict[str, Any]
@@ -137,13 +172,44 @@ class ScenarioProvenance(StrictModel):
     candidate_index: int
 
 
-class ScenarioSpec(StrictModel):
-    schema_version: Literal[1] = 1
+class ScenarioDocumentSpec(StrictModel):
+    """Public scenario document referencing definitions from an item catalog."""
+
+    schema_version: Literal[2] = 2
     id: str = Field(min_length=1, pattern=r"^[a-z][a-z0-9_.-]*$")
     version: str = "1.0.0"
     title: str
     locale: Literal["zh-CN"] = "zh-CN"
     board: BoardSpec
+    item_catalog: str = Field(min_length=1)
+    inventory: list[InventoryEntrySpec]
+    objective: ObjectiveSpec
+    tags: list[str] = Field(default_factory=list)
+    difficulty: Difficulty = "medium"
+    provenance: ScenarioProvenance | None = None
+
+    @model_validator(mode="after")
+    def validate_inventory(self) -> ScenarioDocumentSpec:
+        if not self.inventory:
+            raise ValueError("scenario inventory cannot be empty")
+        local_ids = [entry.local_id() for entry in self.inventory]
+        if len(local_ids) != len(set(local_ids)):
+            raise ValueError("scenario inventory instance prefixes must be unique")
+        if sum(entry.count for entry in self.inventory) > 32:
+            raise ValueError("scenario supports at most 32 item instances")
+        return self
+
+
+class ScenarioSpec(StrictModel):
+    """Fully resolved scenario consumed by the evaluator, prompt and Oracle."""
+
+    schema_version: Literal[2] = 2
+    id: str = Field(min_length=1, pattern=r"^[a-z][a-z0-9_.-]*$")
+    version: str = "1.0.0"
+    title: str
+    locale: Literal["zh-CN"] = "zh-CN"
+    board: BoardSpec
+    item_catalog_id: str = "inline"
     items: list[ItemTypeSpec]
     objective: ObjectiveSpec
     tags: list[str] = Field(default_factory=list)
@@ -208,11 +274,15 @@ class SuiteScenarioEntry(StrictModel):
 
 
 class SuiteSpec(StrictModel):
-    schema_version: Literal[1] = 1
+    schema_version: Literal[2] = 2
     id: str = Field(pattern=r"^[a-z][a-z0-9_.-]*$")
     version: str
     title: str
     locale: Literal["zh-CN"] = "zh-CN"
+    item_catalog: str
+    item_catalog_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+    visual_pack: str
+    visual_pack_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
     allowed_plugins: list[str]
     scenarios: list[SuiteScenarioEntry]
 
@@ -229,7 +299,7 @@ class SuiteSpec(StrictModel):
 
 
 class GeneratorSpec(StrictModel):
-    schema_version: Literal[1] = 1
+    schema_version: Literal[2] = 2
     id: str = Field(pattern=r"^[a-z][a-z0-9_.-]*$")
     seed: int
     count: PositiveInt
@@ -241,6 +311,7 @@ class GeneratorSpec(StrictModel):
     candidate_indices: list[PositiveInt] | None = None
     output_dir: str
     oracle_dir: str
+    catalog_path: str
 
     @model_validator(mode="after")
     def validate_candidate_indices(self) -> GeneratorSpec:
@@ -363,6 +434,7 @@ class RunPlan(StrictModel):
     model_ids: list[str] | None = None
     trials: PositiveInt = 1
     concurrency: PositiveInt = 1
+    prompt_mode: Literal["text", "visual_shape", "visual_full"] = "text"
     database: str = ".bbbench/results.sqlite3"
     artifacts: str = ".bbbench/artifacts"
     reports: str = ".bbbench/reports"
@@ -371,6 +443,48 @@ class RunPlan(StrictModel):
 class GeneratorOutput(StrictModel):
     scenario_paths: list[str]
     oracle_paths: list[str]
+    catalog_path: str
+
+
+class VisualAssetSpec(StrictModel):
+    item_id: str = Field(pattern=r"^[a-z][a-z0-9_]*$")
+    image: str
+    sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
+class ScenarioVisualAssetSpec(StrictModel):
+    scenario_id: str = Field(pattern=r"^[a-z][a-z0-9_.-]*$")
+    scenario_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+    mode: Literal["visual_shape", "visual_full"] = "visual_full"
+    image: str
+    sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
+class VisualPackSpec(StrictModel):
+    schema_version: Literal[1] = 1
+    id: str = Field(pattern=r"^[a-z][a-z0-9_.-]*$")
+    version: str
+    status: Literal["placeholder", "final"] = "placeholder"
+    item_catalog_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+    renderer_id: str
+    renderer_version: str
+    cell_size: PositiveInt = 128
+    assets: list[VisualAssetSpec]
+    cards: list[VisualAssetSpec] = Field(default_factory=list)
+    scenario_sheets: list[ScenarioVisualAssetSpec] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def validate_assets(self) -> VisualPackSpec:
+        ids = [asset.item_id for asset in self.assets]
+        if not ids or len(ids) != len(set(ids)):
+            raise ValueError("visual asset item ids must be non-empty and unique")
+        card_ids = [asset.item_id for asset in self.cards]
+        if card_ids and len(card_ids) != len(set(card_ids)):
+            raise ValueError("visual card item ids must be unique")
+        scenario_keys = [(asset.scenario_id, asset.mode) for asset in self.scenario_sheets]
+        if len(scenario_keys) != len(set(scenario_keys)):
+            raise ValueError("visual scenario id/mode pairs must be unique")
+        return self
 
 
 def is_secret_like(value: str) -> bool:

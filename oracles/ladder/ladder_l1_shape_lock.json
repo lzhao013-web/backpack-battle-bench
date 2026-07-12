@@ -3,7 +3,7 @@
   "exact": true,
   "nodes_evaluated": 8,
   "optimal_attack": 17,
-  "scenario_hash": "75c41c49d5c353d025aa1881a3cfb3408dcca33411aae309cf03c90249b15399",
+  "scenario_hash": "6a0b6bc86d3e78bf87d1e4bd5c82c9a73f50a0b48551714195bcbfefc0dd4e41",
   "scenario_id": "ladder-l1-shape-lock",
   "schema_version": 1,
   "solver_id": "enumeration_branch_bound",

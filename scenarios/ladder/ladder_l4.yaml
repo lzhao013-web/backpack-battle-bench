@@ -1,4 +1,4 @@
-schema_version: 1
+schema_version: 2
 id: ladder-l4-curse-and-block
 version: 1.0.0
 title: L4 · 诅咒与阻挡
@@ -7,93 +7,73 @@ board:
   width: 5
   height: 5
   cells:
-    - [0, 1]
-    - [0, 2]
-    - [0, 3]
-    - [1, 0]
-    - [1, 1]
-    - [1, 2]
-    - [1, 3]
-    - [1, 4]
-    - [2, 1]
-    - [2, 2]
-    - [2, 3]
-    - [3, 0]
-    - [3, 1]
-    - [3, 2]
-    - [3, 3]
-    - [3, 4]
-    - [4, 1]
-    - [4, 2]
-    - [4, 3]
-items:
-  - id: cursed_greatsword
-    display_name: 诅咒巨剑
-    count: 1
-    shape: [[0, 0], [0, 1], [0, 2], [0, 3]]
-    rotations: [0, 90]
-    category: weapon
-    stats: {attack: 12}
-    effects:
-      - type: adjacent_stat_bonus
-        config:
-          directions: [[-1, 0], [1, 0], [0, -1], [0, 1]]
-          target_category: weapon
-          stat: attack
-          amount: -3
-          once_per_target: true
-  - id: l_blade
-    display_name: L形重刃
-    count: 2
-    shape: [[0, 0], [1, 0], [1, 1]]
-    rotations: [0, 90, 180, 270]
-    category: weapon
-    stats: {attack: 7}
-  - id: t_blade
-    display_name: T形战刃
-    count: 1
-    shape: [[0, 0], [0, 1], [0, 2], [1, 1]]
-    rotations: [0, 90, 180, 270]
-    category: weapon
-    stats: {attack: 9}
-  - id: dagger
-    display_name: 双格匕首
-    count: 1
-    shape: [[0, 0], [0, 1]]
-    rotations: [0, 90]
-    category: weapon
-    stats: {attack: 4}
-  - id: gem
-    display_name: 聚能宝石
-    count: 1
-    shape: [[0, 0]]
-    rotations: [0, 90]
-    category: support
-    effects:
-      - type: adjacent_stat_bonus
-        config:
-          directions: [[0, -1], [0, 1]]
-          target_category: weapon
-          stat: attack
-          amount: 4
-          once_per_target: true
-  - id: beacon
-    display_name: 阻挡射线阵
-    count: 1
-    shape: [[0, 0], [0, 1]]
-    rotations: [0, 90, 180, 270]
-    category: support
-    effects:
-      - type: ray_stat_bonus
-        config:
-          direction: [-1, 0]
-          target_category: weapon
-          stat: attack
-          amount: 6
-          once_per_target: true
-          blocked: true
+  - - 0
+    - 1
+  - - 0
+    - 2
+  - - 0
+    - 3
+  - - 1
+    - 0
+  - - 1
+    - 1
+  - - 1
+    - 2
+  - - 1
+    - 3
+  - - 1
+    - 4
+  - - 2
+    - 1
+  - - 2
+    - 2
+  - - 2
+    - 3
+  - - 3
+    - 0
+  - - 3
+    - 1
+  - - 3
+    - 2
+  - - 3
+    - 3
+  - - 3
+    - 4
+  - - 4
+    - 1
+  - - 4
+    - 2
+  - - 4
+    - 3
+item_catalog: ../../catalogs/benchmark-items-v1.yaml
+inventory:
+- item_id: cursed_greatsword
+  count: 1
+- item_id: l_blade_ed7e910d
+  count: 2
+  instance_prefix: l_blade
+- item_id: t_blade_d2a0655e
+  count: 1
+  instance_prefix: t_blade
+- item_id: dagger_d107467b
+  count: 1
+  instance_prefix: dagger
+- item_id: gem_67bd4b45
+  count: 1
+  instance_prefix: gem
+- item_id: beacon
+  count: 1
 objective:
   type: sum_stat
-  config: {category: weapon, stat: attack}
-tags: [ladder, L4, curse, negative-effect, blocked-ray, irregular-board, selection]
+  config:
+    category: weapon
+    stat: attack
+tags:
+- ladder
+- L4
+- curse
+- negative-effect
+- blocked-ray
+- irregular-board
+- selection
 difficulty: hard

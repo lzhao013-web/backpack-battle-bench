@@ -1,0 +1,25 @@
+schema_version: 2
+id: packing-3x3
+version: 1.0.0
+title: 3×3 纯装填取舍题
+locale: zh-CN
+board:
+  width: 3
+  height: 3
+item_catalog: ../../catalogs/benchmark-items-v1.yaml
+inventory:
+- item_id: great_blade
+  count: 3
+- item_id: short_blade
+  count: 3
+- item_id: charm
+  count: 2
+objective:
+  type: sum_stat
+  config:
+    category: weapon
+    stat: attack
+tags:
+- curated
+- packing
+difficulty: easy

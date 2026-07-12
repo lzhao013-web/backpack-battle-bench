@@ -52,6 +52,15 @@
       "title": "Id",
       "type": "string"
     },
+    "item_catalog": {
+      "title": "Item Catalog",
+      "type": "string"
+    },
+    "item_catalog_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Item Catalog Hash",
+      "type": "string"
+    },
     "locale": {
       "const": "zh-CN",
       "default": "zh-CN",
@@ -66,8 +75,8 @@
       "type": "array"
     },
     "schema_version": {
-      "const": 1,
-      "default": 1,
+      "const": 2,
+      "default": 2,
       "title": "Schema Version",
       "type": "integer"
     },
@@ -78,12 +87,25 @@
     "version": {
       "title": "Version",
       "type": "string"
+    },
+    "visual_pack": {
+      "title": "Visual Pack",
+      "type": "string"
+    },
+    "visual_pack_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Visual Pack Hash",
+      "type": "string"
     }
   },
   "required": [
     "id",
     "version",
     "title",
+    "item_catalog",
+    "item_catalog_hash",
+    "visual_pack",
+    "visual_pack_hash",
     "allowed_plugins",
     "scenarios"
   ],

@@ -41,6 +41,16 @@
       "title": "Models",
       "type": "string"
     },
+    "prompt_mode": {
+      "default": "text",
+      "enum": [
+        "text",
+        "visual_shape",
+        "visual_full"
+      ],
+      "title": "Prompt Mode",
+      "type": "string"
+    },
     "reports": {
       "default": ".bbbench/reports",
       "title": "Reports",

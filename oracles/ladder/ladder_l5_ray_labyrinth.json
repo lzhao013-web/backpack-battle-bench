@@ -3,7 +3,7 @@
   "exact": true,
   "nodes_evaluated": 583,
   "optimal_attack": 92,
-  "scenario_hash": "04487bec4862b318234510c3072b3b9b2a6a40cd8d9c272eadd975b13d0ee08e",
+  "scenario_hash": "d246f766c557a3763bcc32e55d1b77e68d37ee4f0a7c44a51c183a995ce23497",
   "scenario_id": "ladder-l5-ray-labyrinth",
   "schema_version": 1,
   "solver_id": "enumeration_branch_bound",

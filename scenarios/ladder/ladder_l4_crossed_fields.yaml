@@ -1,4 +1,4 @@
-schema_version: 1
+schema_version: 2
 id: ladder-l4-crossed-fields
 version: 1.0.0
 title: L4 · 日蚀交叉场
@@ -7,82 +7,72 @@ board:
   width: 5
   height: 5
   cells:
-    - [0, 1]
-    - [0, 2]
-    - [0, 3]
-    - [1, 0]
-    - [1, 1]
-    - [1, 2]
-    - [1, 3]
-    - [1, 4]
-    - [2, 0]
-    - [2, 1]
-    - [2, 2]
-    - [2, 3]
-    - [2, 4]
-    - [3, 0]
-    - [3, 1]
-    - [3, 2]
-    - [3, 3]
-    - [3, 4]
-    - [4, 1]
-    - [4, 2]
-    - [4, 3]
-items:
-  - id: eclipse_spear
-    display_name: 日蚀长枪
-    count: 1
-    shape: [[0, 0], [0, 1], [0, 2]]
-    rotations: [0, 90, 180, 270]
-    category: weapon
-    stats: {attack: 13}
-    effects:
-      - type: ray_stat_bonus
-        config:
-          direction: [-1, 0]
-          target_category: weapon
-          stat: attack
-          amount: -4
-          once_per_target: true
-          blocked: false
-  - id: t_blade
-    display_name: T形重刃
-    count: 1
-    shape: [[0, 0], [0, 1], [0, 2], [1, 1]]
-    rotations: [0, 90, 180, 270]
-    category: weapon
-    stats: {attack: 9}
-  - id: l_blade
-    display_name: L形战刃
-    count: 2
-    shape: [[0, 0], [1, 0], [1, 1]]
-    rotations: [0, 90, 180, 270]
-    category: weapon
-    stats: {attack: 7}
-  - id: dagger
-    display_name: 双格匕首
-    count: 2
-    shape: [[0, 0], [0, 1]]
-    rotations: [0, 90]
-    category: weapon
-    stats: {attack: 4}
-  - id: sun_prism
-    display_name: 太阳棱镜
-    count: 1
-    shape: [[0, 0], [0, 1]]
-    rotations: [0, 90, 180, 270]
-    category: support
-    effects:
-      - type: ray_stat_bonus
-        config:
-          direction: [-1, 0]
-          target_category: weapon
-          stat: attack
-          amount: 5
-          once_per_target: true
-          blocked: false
+  - - 0
+    - 1
+  - - 0
+    - 2
+  - - 0
+    - 3
+  - - 1
+    - 0
+  - - 1
+    - 1
+  - - 1
+    - 2
+  - - 1
+    - 3
+  - - 1
+    - 4
+  - - 2
+    - 0
+  - - 2
+    - 1
+  - - 2
+    - 2
+  - - 2
+    - 3
+  - - 2
+    - 4
+  - - 3
+    - 0
+  - - 3
+    - 1
+  - - 3
+    - 2
+  - - 3
+    - 3
+  - - 3
+    - 4
+  - - 4
+    - 1
+  - - 4
+    - 2
+  - - 4
+    - 3
+item_catalog: ../../catalogs/benchmark-items-v1.yaml
+inventory:
+- item_id: eclipse_spear
+  count: 1
+- item_id: t_blade_ecb720d5
+  count: 1
+  instance_prefix: t_blade
+- item_id: l_blade_93222129
+  count: 2
+  instance_prefix: l_blade
+- item_id: dagger_d107467b
+  count: 2
+  instance_prefix: dagger
+- item_id: sun_prism
+  count: 1
 objective:
   type: sum_stat
-  config: {category: weapon, stat: attack}
-tags: [ladder, L4, positive-negative-fields, penetrating-rays, source-separation]
+  config:
+    category: weapon
+    stat: attack
+tags:
+- ladder
+- L4
+- positive-negative-fields
+- penetrating-rays
+- source-separation
 difficulty: hard

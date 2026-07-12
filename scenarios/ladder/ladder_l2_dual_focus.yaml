@@ -1,4 +1,4 @@
-schema_version: 1
+schema_version: 2
 id: ladder-l2-dual-focus
 version: 1.0.0
 title: L2 · 双核聚焦
@@ -6,51 +6,26 @@ locale: zh-CN
 board:
   width: 4
   height: 4
-items:
-  - id: anchor_blade
-    display_name: T形锚刃
-    count: 1
-    shape: [[0, 0], [0, 1], [0, 2], [1, 1]]
-    rotations: [0, 90, 180, 270]
-    category: weapon
-    stats: {attack: 10}
-  - id: rapier
-    display_name: 细剑
-    count: 2
-    shape: [[0, 0], [0, 1]]
-    rotations: [0, 90]
-    category: weapon
-    stats: {attack: 4}
-  - id: amber_gem
-    display_name: 琥珀横核
-    count: 1
-    shape: [[0, 0]]
-    rotations: [0, 90]
-    category: support
-    effects:
-      - type: adjacent_stat_bonus
-        config:
-          directions: [[0, -1], [0, 1]]
-          target_category: weapon
-          stat: attack
-          amount: 2
-          once_per_target: true
-  - id: azure_gem
-    display_name: 湛蓝纵核
-    count: 1
-    shape: [[0, 0]]
-    rotations: [0, 90]
-    category: support
-    effects:
-      - type: adjacent_stat_bonus
-        config:
-          directions: [[-1, 0], [1, 0]]
-          target_category: weapon
-          stat: attack
-          amount: 3
-          once_per_target: true
+item_catalog: ../../catalogs/benchmark-items-v1.yaml
+inventory:
+- item_id: anchor_blade
+  count: 1
+- item_id: rapier_c7edb176
+  count: 2
+  instance_prefix: rapier
+- item_id: amber_gem
+  count: 1
+- item_id: azure_gem
+  count: 1
 objective:
   type: sum_stat
-  config: {category: weapon, stat: attack}
-tags: [ladder, L2, multi-source, stacking, orthogonal-fields]
+  config:
+    category: weapon
+    stat: attack
+tags:
+- ladder
+- L2
+- multi-source
+- stacking
+- orthogonal-fields
 difficulty: easy

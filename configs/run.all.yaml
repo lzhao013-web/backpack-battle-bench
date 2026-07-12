@@ -1,9 +1,0 @@
-schema_version: 1
-id: all-scenarios-v1
-suite: ../suites/core-v1.yaml
-models: models.example.yaml
-trials: 3
-concurrency: 5
-database: ../.bbbench/results.sqlite3
-artifacts: ../.bbbench/artifacts
-reports: ../.bbbench/reports

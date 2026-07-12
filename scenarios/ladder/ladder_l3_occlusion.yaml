@@ -1,4 +1,4 @@
-schema_version: 1
+schema_version: 2
 id: ladder-l3-occlusion
 version: 1.0.0
 title: L3 · 双路遮光
@@ -6,51 +6,30 @@ locale: zh-CN
 board:
   width: 4
   height: 4
-items:
-  - id: greatsword
-    display_name: 三格大剑
-    count: 1
-    shape: [[0, 0], [0, 1], [0, 2]]
-    rotations: [0, 90]
-    category: weapon
-    stats: {attack: 7}
-  - id: blade
-    display_name: 双格战刃
-    count: 2
-    shape: [[0, 0], [0, 1]]
-    rotations: [0, 90]
-    category: weapon
-    stats: {attack: 4}
-  - id: dagger
-    display_name: 小匕首
-    count: 2
-    shape: [[0, 0]]
-    rotations: [0]
-    category: weapon
-    stats: {attack: 2}
-  - id: double_beacon
-    display_name: 双路灯塔
-    count: 1
-    shape: [[0, 0], [0, 1]]
-    rotations: [0, 90, 180, 270]
-    category: support
-    effects:
-      - type: ray_stat_bonus
-        config:
-          direction: [-1, 0]
-          target_category: weapon
-          stat: attack
-          amount: 4
-          once_per_target: true
-          blocked: true
-  - id: wall
-    display_name: 遮光板
-    count: 1
-    shape: [[0, 0], [0, 1]]
-    rotations: [0, 90]
-    category: support
+item_catalog: ../../catalogs/benchmark-items-v1.yaml
+inventory:
+- item_id: greatsword_8490ff64
+  count: 1
+  instance_prefix: greatsword
+- item_id: blade
+  count: 2
+- item_id: dagger_2ded96e3
+  count: 2
+  instance_prefix: dagger
+- item_id: double_beacon
+  count: 1
+- item_id: wall
+  count: 1
 objective:
   type: sum_stat
-  config: {category: weapon, stat: attack}
-tags: [ladder, L3, positive-ray, blocked-ray, occlusion, ordering]
+  config:
+    category: weapon
+    stat: attack
+tags:
+- ladder
+- L3
+- positive-ray
+- blocked-ray
+- occlusion
+- ordering
 difficulty: medium

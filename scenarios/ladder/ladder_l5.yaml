@@ -1,4 +1,4 @@
-schema_version: 1
+schema_version: 2
 id: ladder-l5-prism-maze
 version: 1.0.0
 title: L5 · 棱镜迷阵
@@ -7,122 +7,74 @@ board:
   width: 5
   height: 5
   cells:
-    - [0, 1]
-    - [0, 2]
-    - [0, 3]
-    - [1, 0]
-    - [1, 1]
-    - [1, 2]
-    - [1, 3]
-    - [1, 4]
-    - [2, 1]
-    - [2, 2]
-    - [2, 3]
-    - [3, 0]
-    - [3, 1]
-    - [3, 2]
-    - [3, 3]
-    - [3, 4]
-    - [4, 1]
-    - [4, 2]
-    - [4, 3]
-items:
-  - id: warped_halberd
-    display_name: 扭曲战戟
-    count: 1
-    shape: [[0, 0], [0, 1], [0, 2], [1, 1]]
-    rotations: [0, 90, 180, 270]
-    category: weapon
-    stats: {attack: 10}
-    effects:
-      - type: adjacent_stat_bonus
-        config:
-          directions: [[0, -1], [0, 1]]
-          target_category: weapon
-          stat: attack
-          amount: 3
-          once_per_target: true
-      - type: adjacent_stat_bonus
-        config:
-          directions: [[-1, 0], [1, 0]]
-          target_category: weapon
-          stat: attack
-          amount: -3
-          once_per_target: true
-  - id: hook_blade
-    display_name: 钩形剑
-    count: 1
-    shape: [[0, 0], [1, 0], [1, 1]]
-    rotations: [0, 90, 180, 270]
-    category: weapon
-    stats: {attack: 7}
-  - id: zigzag_blade
-    display_name: 折线刃
-    count: 1
-    shape: [[0, 1], [0, 2], [1, 0], [1, 1]]
-    rotations: [0, 90]
-    category: weapon
-    stats: {attack: 8}
-  - id: twin_dagger
-    display_name: 双生匕首
-    count: 1
-    shape: [[0, 0], [0, 1]]
-    rotations: [0, 90]
-    category: weapon
-    stats: {attack: 4}
-  - id: cursed_idol
-    display_name: 诅咒偶像
-    count: 1
-    shape: [[0, 0]]
-    rotations: [0, 90, 180, 270]
-    category: weapon
-    stats: {attack: 9}
-    effects:
-      - type: ray_stat_bonus
-        config:
-          direction: [-1, 0]
-          target_category: weapon
-          stat: attack
-          amount: -5
-          once_per_target: true
-          blocked: true
-  - id: focus_gem
-    display_name: 聚焦宝石
-    count: 1
-    shape: [[0, 0]]
-    rotations: [0, 90]
-    category: support
-    effects:
-      - type: adjacent_stat_bonus
-        config:
-          directions: [[0, -1], [0, 1]]
-          target_category: weapon
-          stat: attack
-          amount: 4
-          once_per_target: true
-  - id: prism_array
-    display_name: L形棱镜阵
-    count: 1
-    shape: [[0, 0], [1, 0], [1, 1]]
-    rotations: [0, 90, 180, 270]
-    category: support
-    effects:
-      - type: ray_stat_bonus
-        config:
-          direction: [-1, 0]
-          target_category: weapon
-          stat: attack
-          amount: 5
-          once_per_target: true
-          blocked: false
-  - id: shield_wall
-    display_name: 护盾墙
-    count: 1
-    shape: [[0, 0], [0, 1]]
-    rotations: [0, 90]
-    category: support
+  - - 0
+    - 1
+  - - 0
+    - 2
+  - - 0
+    - 3
+  - - 1
+    - 0
+  - - 1
+    - 1
+  - - 1
+    - 2
+  - - 1
+    - 3
+  - - 1
+    - 4
+  - - 2
+    - 1
+  - - 2
+    - 2
+  - - 2
+    - 3
+  - - 3
+    - 0
+  - - 3
+    - 1
+  - - 3
+    - 2
+  - - 3
+    - 3
+  - - 3
+    - 4
+  - - 4
+    - 1
+  - - 4
+    - 2
+  - - 4
+    - 3
+item_catalog: ../../catalogs/benchmark-items-v1.yaml
+inventory:
+- item_id: warped_halberd
+  count: 1
+- item_id: hook_blade
+  count: 1
+- item_id: zigzag_blade
+  count: 1
+- item_id: twin_dagger
+  count: 1
+- item_id: cursed_idol
+  count: 1
+- item_id: focus_gem_f97cedde
+  count: 1
+  instance_prefix: focus_gem
+- item_id: prism_array
+  count: 1
+- item_id: shield_wall
+  count: 1
 objective:
   type: sum_stat
-  config: {category: weapon, stat: attack}
-tags: [ladder, L5, mixed-sign, multi-effect, blocked-ray, blocker, irregular-board]
+  config:
+    category: weapon
+    stat: attack
+tags:
+- ladder
+- L5
+- mixed-sign
+- multi-effect
+- blocked-ray
+- blocker
+- irregular-board
 difficulty: hard

@@ -1,0 +1,40 @@
+{
+  "elapsed_seconds": 0.012412600000970997,
+  "exact": true,
+  "nodes_evaluated": 116,
+  "optimal_attack": 18,
+  "scenario_hash": "18a2cc283e7dc284dd15690e2754eabdaa99502e7963335743f29c38973def25",
+  "scenario_id": "packing-3x3",
+  "schema_version": 1,
+  "solver_id": "enumeration_branch_bound",
+  "solver_version": "1.0.0",
+  "timed_out": false,
+  "witness": {
+    "placements": [
+      {
+        "col": 0,
+        "item_id": "great_blade_1",
+        "rotation": 0,
+        "row": 0
+      },
+      {
+        "col": 0,
+        "item_id": "short_blade_1",
+        "rotation": 0,
+        "row": 1
+      },
+      {
+        "col": 0,
+        "item_id": "short_blade_2",
+        "rotation": 0,
+        "row": 2
+      },
+      {
+        "col": 2,
+        "item_id": "short_blade_3",
+        "rotation": 90,
+        "row": 1
+      }
+    ]
+  }
+}
