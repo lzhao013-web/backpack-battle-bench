@@ -282,9 +282,10 @@ actual[s,t] = 合法布局的实际攻击力，否则为 0
 ratio[s,t] = actual[s,t] / exact_oracle[s]
 scenario_score[s] = 所有 trial 的 ratio 均值
 overall_score = 100 × Σ(weight[s] × scenario_score[s]) / Σ(weight[s])
+best_of_3_score = 100 × Σ(weight[s] × max(ratio[s,1..3])) / Σ(weight[s])
 ```
 
-报告包含单题实际攻击的均值/最好/最差/标准差、合法率、最优命中率、错误分布、重试率、截断率、延迟 P50/P95、输入/输出/推理/缓存 token 和可选成本估算。HTML 报告会按模型展开每道题和每次 trial，并继续展开每次 attempt 的 HTTP 状态、原始失败原因、延迟和重试顺序，同时显示攻击、Oracle 比例、Job ID 及脱敏后的完整验证明细。未配置价格时成本为 `null`。
+主榜仍按三次平均分排序；报告另外显示每道题三次中取最高后再加权的 `Best-of-3`。报告还包含单题实际攻击的均值/最好/最差/标准差、合法率、最优命中率、错误分布、重试率、截断率、延迟 P50/P95、输入/输出/推理/缓存 token 和可选成本估算。HTML 报告会按模型展开每道题和每次 trial，并继续展开每次 attempt 的 HTTP 状态、原始失败原因、延迟和重试顺序，同时显示攻击、Oracle 比例、Job ID 及脱敏后的完整验证明细。未配置价格时成本为 `null`。
 
 ## 扩展规则
 

@@ -315,6 +315,7 @@ def test_6_job_matrix_retry_and_resume(
     scores = sorted(profile["overall_score"] for profile in report["profiles"])
     assert scores[0] == pytest.approx(66.6666666667)
     assert scores[1] == 100
+    assert all(profile["best_of_3_score"] == 100 for profile in report["profiles"])
     assert any(profile["retry_rate"] > 0 for profile in report["profiles"])
     assert sum(profile["truncation_rate"] for profile in report["profiles"]) == pytest.approx(1 / 3)
     assert (
@@ -374,6 +375,7 @@ def test_6_job_matrix_retry_and_resume(
     assert "单题与 Trial 明细" in html_report
     assert "Token 入/出/推理/缓存" in html_report
     assert "验证明细" in html_report
+    assert "Best-of-3" in html_report
     assert "原始错误（Key 已脱敏）" in html_report
     assert "HTTP 429" in html_report
     assert "packing-3x3" in html_report

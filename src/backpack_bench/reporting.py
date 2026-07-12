@@ -109,6 +109,12 @@ def _error_name(row: dict[str, Any]) -> str:
     return str(row.get("error_type") or "success")
 
 
+def _best_of_3_ratio(rows: list[dict[str, Any]]) -> float:
+    first_three = [row for row in rows if int(row.get("trial") or 0) <= 3]
+    selected = first_three or rows
+    return max(float(row.get("ratio") or 0.0) for row in selected)
+
+
 def _aggregate_rows(rows: list[dict[str, Any]]) -> dict[str, Any]:
     """Compute metrics while giving each scenario its manifest weight exactly once."""
     if not rows:
@@ -117,11 +123,14 @@ def _aggregate_rows(rows: list[dict[str, Any]]) -> dict[str, Any]:
     for row in rows:
         by_scenario[str(row["scenario_hash"])].append(row)
     weighted_ratio = 0.0
+    weighted_best_ratio = 0.0
     total_weight = 0.0
     for scenario_rows in by_scenario.values():
         weight = float(scenario_rows[0]["weight"])
         ratio_mean = statistics.fmean(float(row.get("ratio") or 0.0) for row in scenario_rows)
+        ratio_best = _best_of_3_ratio(scenario_rows)
         weighted_ratio += weight * ratio_mean
+        weighted_best_ratio += weight * ratio_best
         total_weight += weight
 
     attacks = [int(row.get("actual_attack") or 0) for row in rows]
@@ -135,6 +144,7 @@ def _aggregate_rows(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "scenarios": len(by_scenario),
         "jobs": len(rows),
         "overall_score": 100 * weighted_ratio / total_weight if total_weight else 0.0,
+        "best_of_3_score": (100 * weighted_best_ratio / total_weight if total_weight else 0.0),
         "valid_rate": sum(bool(row.get("valid")) for row in rows) / len(rows),
         "optimal_hit_rate": sum(
             bool(row.get("valid")) and int(row.get("actual_attack") or 0) == _oracle_attack(row)
@@ -219,6 +229,7 @@ def build_run_report(storage: Storage, run_id: str) -> dict[str, Any]:
                     "attack_worst": min(attacks),
                     "attack_stddev": statistics.pstdev(attacks),
                     "ratio_mean": ratio_mean,
+                    "ratio_best_of_3": _best_of_3_ratio(scenario_rows),
                     "optimal_hit_rate": sum(attack == oracle for attack in attacks) / len(attacks),
                     "error_counts": dict(
                         sorted(Counter(_error_name(row) for row in scenario_rows).items())
@@ -344,6 +355,7 @@ def console_report(value: dict[str, Any], console: Console | None = None) -> Non
         "Profile",
         "Model",
         "Score",
+        "Best-of-3",
         "Valid",
         "Optimal",
         "Retry",
@@ -358,6 +370,7 @@ def console_report(value: dict[str, Any], console: Console | None = None) -> Non
             str(profile["profile_id"]),
             str(profile["model"]),
             f"{profile['overall_score']:.3f}",
+            f"{profile['best_of_3_score']:.3f}",
             f"{profile['valid_rate']:.1%}",
             f"{profile['optimal_hit_rate']:.1%}",
             f"{profile['retry_rate']:.1%}",
@@ -377,6 +390,7 @@ def csv_report(value: dict[str, Any]) -> str:
         "model",
         "group_value",
         "overall_score",
+        "best_of_3_score",
         "valid_rate",
         "optimal_hit_rate",
         "retry_rate",
@@ -506,6 +520,7 @@ def _html_scenarios(scenarios: Any) -> str:
             f"<span><strong>{_html_text(scenario.get('title'))}</strong>"
             f"<small>{_html_text(scenario.get('scenario_id'))}</small></span>"
             f"<span>得分 {_html_percent(scenario.get('ratio_mean'))}</span>"
+            f"<span>Best-of-3 {_html_percent(scenario.get('ratio_best_of_3'))}</span>"
             f"<span>平均攻击 {_html_number(scenario.get('attack_mean'))} / "
             f"{int(scenario.get('oracle_attack') or 0)}</span>"
             f"<span>合法 {_html_percent(scenario.get('valid_rate'))}</span>"
@@ -560,6 +575,7 @@ def html_report(value: dict[str, Any]) -> str:
             f"<small>{_html_text(profile.get('profile_id', ''))}</small></td>"
             f"<td>{_html_text(profile.get('model', '—'))}</td>"
             f"<td>{_html_number(profile.get('overall_score'), 3)}</td>"
+            f"<td>{_html_number(profile.get('best_of_3_score'), 3)}</td>"
             f"<td>{_html_percent(profile.get('valid_rate'))}</td>"
             f"<td>{_html_percent(profile.get('optimal_hit_rate'))}</td>"
             f"<td>{_html_percent(profile.get('retry_rate'))}</td>"
@@ -574,6 +590,7 @@ def html_report(value: dict[str, Any]) -> str:
         )
         metrics = (
             ("总分", _html_number(profile.get("overall_score"), 3)),
+            ("Best-of-3", _html_number(profile.get("best_of_3_score"), 3)),
             ("合法率", _html_percent(profile.get("valid_rate"))),
             ("最优命中率", _html_percent(profile.get("optimal_hit_rate"))),
             ("Jobs", f"{int(profile.get('jobs') or 0):,}"),
@@ -671,7 +688,8 @@ footer { max-width:1500px; margin:0 auto 2rem; padding:0 1.4rem; color:var(--mut
 """
     overview = (
         '<section class="profile overview"><h2>模型总览</h2><div class="table-wrap"><table>'
-        "<thead><tr><th>Rank</th><th>Profile</th><th>Model</th><th>总分</th><th>合法率</th>"
+        "<thead><tr><th>Rank</th><th>Profile</th><th>Model</th><th>总分</th>"
+        "<th>Best-of-3</th><th>合法率</th>"
         "<th>最优率</th><th>重试率</th><th>截断率</th><th>P50 ms</th><th>P95 ms</th>"
         f"<th>成本</th></tr></thead><tbody>{''.join(overview_rows)}</tbody></table></div></section>"
         if overview_rows

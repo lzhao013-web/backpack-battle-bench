@@ -197,6 +197,7 @@ def test_web_scenario_lab_uses_real_validator() -> None:
             assert "function startRunStream" in script
             assert "new EventSource" in script
             assert "run-jobs-table" in root.text
+            assert "Best-of-3" in root.text
             assert "<th>得分</th><th>耗时</th>" in root.text
             assert ".button-danger" in styles.text
             assert ".job-stream-wrap" in styles.text
@@ -327,6 +328,7 @@ def test_web_can_start_and_report_mock_run(tmp_path: Path, monkeypatch: pytest.M
             assert all(job["actual_attack"] == job["oracle_attack"] for job in payload["jobs"])
             assert all(job["latency_ms"] >= 0 for job in payload["jobs"])
             assert payload["report"]["profiles"][0]["overall_score"] == 100
+            assert payload["report"]["profiles"][0]["best_of_3_score"] == 100
             events = await client.get(f"/api/run-configs/{config_id}/runs/{run_id}/events")
             assert events.status_code == 200
             assert events.headers["content-type"].startswith("text/event-stream")

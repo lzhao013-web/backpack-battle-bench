@@ -1422,6 +1422,7 @@ function renderReportProfiles(report) {
     [
       profile.display_name || profile.profile_id,
       Number(profile.overall_score).toFixed(2),
+      Number(profile.best_of_3_score).toFixed(2),
       `${(profile.valid_rate * 100).toFixed(1)}%`,
       `${(profile.optimal_hit_rate * 100).toFixed(1)}%`,
       profile.latency_p50_ms == null ? "—" : `${profile.latency_p50_ms.toFixed(0)} ms`,
