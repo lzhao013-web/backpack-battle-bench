@@ -1,4 +1,5 @@
 import asyncio
+import io
 import json
 import re
 from collections.abc import AsyncIterator
@@ -8,6 +9,7 @@ from typing import Any, cast
 
 import httpx
 import pytest
+from PIL import Image
 from pydantic import HttpUrl
 
 from backpack_bench.io import atomic_write_yaml
@@ -163,6 +165,37 @@ class WebLiveTokenAsyncClient:
         pass
 
 
+class HeartbeatStreamResponse:
+    status_code = 200
+    headers = httpx.Headers({"Content-Type": "text/event-stream"})
+
+    async def aiter_lines(self) -> AsyncIterator[str]:
+        while True:
+            yield ": heartbeat"
+            await asyncio.sleep(0.01)
+
+
+class WebHeartbeatAsyncClient:
+    calls = 0
+
+    def __init__(self, **_: object) -> None:
+        pass
+
+    @asynccontextmanager
+    async def stream(
+        self,
+        method: str,
+        url: str,
+        headers: dict[str, str],
+        json: dict[str, Any],
+    ) -> AsyncIterator[httpx.Response]:
+        WebHeartbeatAsyncClient.calls += 1
+        yield cast(httpx.Response, HeartbeatStreamResponse())
+
+    async def aclose(self) -> None:
+        pass
+
+
 def test_web_scenario_lab_uses_real_validator() -> None:
     async def exercise() -> None:
         app = create_app(ROOT)
@@ -182,10 +215,16 @@ def test_web_scenario_lab_uses_real_validator() -> None:
             assert 'addEventListener("contextmenu"' in script
             assert "rotateActiveDrag" in script
             assert "function effectPreview" in script
+            assert "function itemImageUrl" in script
+            assert "cell-item-image-viewport" in script
+            assert "itemImageUrl(instance, rotation)" in script
             assert "renderEffectPreview" in script
             assert "ray_stat_bonus" in script
             assert ".board-cell.is-effect-range" in styles.text
+            assert ".cell-item-image-viewport" in styles.text
+            assert ".drag-ghost img" in styles.text
             assert "效果范围" in root.text
+            assert "单次请求总超时（秒）" in root.text
             assert "API_HISTORY_STORAGE_KEY" in script
             assert "saveCurrentApiHistory" in script
             assert "受 run.yaml 全局并发" in script
@@ -222,6 +261,13 @@ def test_web_scenario_lab_uses_real_validator() -> None:
             image = await client.get(sword["image_url"])
             assert image.status_code == 200
             assert image.content.startswith(b"\x89PNG")
+            rotated_image = await client.get(f"{sword['image_url']}?rotation=90")
+            assert rotated_image.status_code == 200
+            with Image.open(io.BytesIO(image.content)) as original:
+                original_size = original.size
+            with Image.open(io.BytesIO(rotated_image.content)) as rotated:
+                assert rotated.size == original_size[::-1]
+            assert (await client.get(f"{sword['image_url']}?rotation=180")).status_code == 400
             card = await client.get(sword["card_url"])
             assert card.status_code == 200
             assert card.content.startswith(b"\x89PNG")
@@ -255,7 +301,7 @@ def test_expanded_ladder_run_config_expands_to_90_jobs() -> None:
     assert summary["suite_id"] == "ladder-v2"
     assert summary["scenarios"] == 15
     assert summary["jobs"] == 90
-    assert summary["concurrency"] == 5
+    assert summary["concurrency"] == 10
 
 
 def test_web_can_start_and_report_mock_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -657,3 +703,84 @@ def test_web_runtime_api_profile_uses_ephemeral_key(
     for path in (tmp_path / "data").rglob("*"):
         if path.is_file():
             assert secret.encode() not in path.read_bytes()
+
+
+def test_web_runtime_timeout_is_a_total_stream_deadline(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config_dir = tmp_path / "configs"
+    atomic_write_yaml(
+        config_dir / "models.yaml",
+        ModelsConfig(
+            profiles=[
+                ModelProfile(
+                    id="unused-static-profile",
+                    protocol="openai_chat",
+                    base_url=HttpUrl("https://unused.test/v1"),
+                    model="unused-model",
+                    auth_mode="none",
+                    limits=ProviderLimits(retries=0),
+                )
+            ]
+        ),
+    )
+    atomic_write_yaml(
+        config_dir / "run.yaml",
+        RunPlan(
+            id="web-total-timeout",
+            suite=str(ROOT / "suites" / "smoke-v1.yaml"),
+            models="models.yaml",
+            trials=1,
+            database="../data/results.sqlite3",
+            artifacts="../data/artifacts",
+            reports="../data/reports",
+        ),
+    )
+    WebHeartbeatAsyncClient.calls = 0
+    monkeypatch.setattr("backpack_bench.runner.httpx.AsyncClient", WebHeartbeatAsyncClient)
+
+    async def exercise() -> None:
+        app = create_app(tmp_path)
+        transport = httpx.ASGITransport(app=app)
+        async with (
+            app.router.lifespan_context(app),
+            REAL_ASYNC_CLIENT(transport=transport, base_url="http://test") as client,
+        ):
+            config_id = (await client.get("/api/run-configs")).json()[0]["id"]
+            started = await client.post(
+                f"/api/run-configs/{config_id}/runs",
+                json={
+                    "profile": {
+                        "protocol": "openai_chat",
+                        "base_url": "https://heartbeat.test/v1",
+                        "model": "heartbeat-model",
+                        "auth_mode": "none",
+                        "limits": {
+                            "timeout_seconds": 0.05,
+                            "concurrency": 1,
+                            "retries": 0,
+                        },
+                    }
+                },
+            )
+            assert started.status_code == 202
+            run_id = started.json()["run_id"]
+            payload: dict[str, Any] | None = None
+            for _ in range(100):
+                payload = (await client.get(f"/api/run-configs/{config_id}/runs/{run_id}")).json()
+                if payload["status"] == "completed":
+                    break
+                await asyncio.sleep(0.01)
+            assert payload is not None
+            assert payload["status"] == "completed"
+            assert WebHeartbeatAsyncClient.calls == 1
+            assert payload["jobs"][0]["error_type"] == "api_timeout"
+            assert 20 <= payload["jobs"][0]["latency_ms"] < 1000
+            summary_path = next(
+                (tmp_path / "data" / "artifacts" / run_id).glob("*/attempt_001/summary.json")
+            )
+            summary = json.loads(summary_path.read_text(encoding="utf-8"))
+            assert summary["error_type"] == "api_timeout"
+            assert "total timeout of 0.05 seconds" in summary["error_message"]
+
+    asyncio.run(exercise())

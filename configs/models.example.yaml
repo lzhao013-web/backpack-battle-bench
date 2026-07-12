@@ -10,9 +10,9 @@ profiles:
       thinking_effort: medium
       json_mode: false
     limits:
-      concurrency: 1
+      concurrency: 10
       qps: 1
-      timeout_seconds: 120
+      timeout_seconds: 1800
       retries: 3
   - id: anthropic-compatible-high
     display_name: Anthropic-compatible / adaptive high
@@ -25,7 +25,7 @@ profiles:
       thinking_effort: high
       thinking_mode: adaptive
     limits:
-      concurrency: 1
+      concurrency: 10
       qps: 1
-      timeout_seconds: 120
+      timeout_seconds: 1800
       retries: 3

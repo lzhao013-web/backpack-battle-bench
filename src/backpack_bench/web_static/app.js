@@ -119,6 +119,12 @@ function occupiedCells(instance, placement) {
   ]);
 }
 
+function itemImageUrl(instance, rotation) {
+  const url = new URL(instance.image_url, window.location.href);
+  url.searchParams.set("rotation", String(rotation));
+  return `${url.pathname}${url.search}`;
+}
+
 function rotateVector(vector, rotation) {
   let [row, col] = vector;
   const turns = ((rotation % 360) + 360) % 360 / 90;
@@ -263,17 +269,15 @@ function createDragGhost(instance, rotation) {
   const shape = rotatedShape(instance.shape, rotation);
   const height = Math.max(...shape.map(([row]) => row)) + 1;
   const width = Math.max(...shape.map(([, col]) => col)) + 1;
-  const occupied = new Set(shape.map(([row, col]) => `${row},${col}`));
   const ghost = document.createElement("div");
-  ghost.className = `drag-ghost ${instance.category === "weapon" ? "is-weapon" : "is-support"}`;
-  ghost.style.setProperty("--ghost-cols", width);
-  for (let row = 0; row < height; row += 1) {
-    for (let col = 0; col < width; col += 1) {
-      const cell = document.createElement("i");
-      if (occupied.has(`${row},${col}`)) cell.className = "is-filled";
-      ghost.append(cell);
-    }
-  }
+  ghost.className = "drag-ghost";
+  const image = document.createElement("img");
+  image.src = itemImageUrl(instance, rotation);
+  image.alt = "";
+  image.draggable = false;
+  image.style.width = `${width * 27 - 3}px`;
+  image.style.height = `${height * 27 - 3}px`;
+  ghost.append(image);
   document.body.append(ghost);
   return ghost;
 }
@@ -684,13 +688,34 @@ function renderBoard() {
         if (owner) {
           cell.classList.add("is-draggable");
           cell.classList.add(owner.category === "weapon" ? "is-weapon" : "is-support");
-          const item = document.createElement("span");
-          item.className = "cell-item";
-          item.textContent = owner.display_name.slice(0, 3);
+          const placement = state.placements.get(owner.item_id);
+          const localShape = placement ? rotatedShape(owner.shape, placement.rotation) : [];
+          const localCell = placement
+            ? localShape.find(([localRow, localCol]) => (
+              placement.row + localRow === row && placement.col + localCol === col
+            ))
+            : null;
+          if (placement && localCell) {
+            const shapeHeight = Math.max(...localShape.map(([localRow]) => localRow)) + 1;
+            const shapeWidth = Math.max(...localShape.map(([, localCol]) => localCol)) + 1;
+            const viewport = document.createElement("span");
+            viewport.className = "cell-item-image-viewport";
+            const image = document.createElement("img");
+            image.className = "cell-item-image";
+            image.src = itemImageUrl(owner, placement.rotation);
+            image.alt = "";
+            image.draggable = false;
+            image.style.width = `${shapeWidth * 100}%`;
+            image.style.height = `${shapeHeight * 100}%`;
+            image.style.left = `${-localCell[1] * 100}%`;
+            image.style.top = `${-localCell[0] * 100}%`;
+            viewport.append(image);
+            cell.append(viewport);
+          }
           const suffix = document.createElement("span");
           suffix.className = "cell-instance";
           suffix.textContent = `#${owner.item_id.split("_").at(-1)}`;
-          cell.append(item, suffix);
+          cell.append(suffix);
           cell.addEventListener("pointerdown", (event) => {
             const placement = state.placements.get(owner.item_id);
             const offset = placement ? [row - placement.row, col - placement.col] : [0, 0];
@@ -920,8 +945,8 @@ function collectApiProfile() {
     if (thinkingBudget !== undefined) params.thinking_budget = thinkingBudget;
   }
   const limits = {
-    concurrency: optionalNumber("#api-concurrency", true) ?? 1,
-    timeout_seconds: optionalNumber("#api-timeout") ?? 120,
+    concurrency: optionalNumber("#api-concurrency", true) ?? 10,
+    timeout_seconds: optionalNumber("#api-timeout") ?? 1800,
     retries: optionalNumber("#api-retries", true) ?? 3,
   };
   const qps = optionalNumber("#api-qps");
@@ -1017,8 +1042,8 @@ function resetApiForm() {
   $("#api-thinking-budget").value = "";
   $("#api-max-tokens").value = "";
   $("#api-temperature").value = "";
-  $("#api-timeout").value = "120";
-  $("#api-concurrency").value = "1";
+  $("#api-timeout").value = "1800";
+  $("#api-concurrency").value = "10";
   $("#api-qps").value = "1";
   $("#api-retries").value = "3";
   $("#api-verify-tls").checked = true;
@@ -1046,8 +1071,8 @@ function applyApiHistoryRecord(record) {
   $("#api-thinking-budget").value = params.thinking_budget || "";
   $("#api-max-tokens").value = params.max_tokens || "";
   $("#api-temperature").value = params.temperature ?? "";
-  $("#api-timeout").value = limits.timeout_seconds ?? 120;
-  $("#api-concurrency").value = limits.concurrency ?? 1;
+  $("#api-timeout").value = limits.timeout_seconds ?? 1800;
+  $("#api-concurrency").value = limits.concurrency ?? 10;
   $("#api-qps").value = limits.qps ?? "";
   $("#api-retries").value = limits.retries ?? 3;
   $("#api-verify-tls").checked = profile.verify_tls !== false;

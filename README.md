@@ -208,9 +208,9 @@ profiles:
       thinking_effort: medium
       # max_tokens: 8192  # 只有显式配置才发送
     limits:
-      concurrency: 1
+      concurrency: 10
       qps: 1
-      timeout_seconds: 120
+      timeout_seconds: 1800
       retries: 3
 ```
 
@@ -222,6 +222,7 @@ profiles:
 - Anthropic 自适应思考：`thinking_mode: adaptive`；
 - Anthropic 手动思考：`thinking_mode: enabled`、`thinking_budget >= 1024`，且必须配置更大的 `max_tokens`；
 - 默认不发送 `max_tokens`，避免客户端在 2048 等固定值截断输出。
+- `limits.timeout_seconds` 是每次请求尝试的总墙钟超时，持续返回流式数据也不会延长；重试会重新计算一次超时。
 
 `temperature` 默认也省略。第三方网关的非标准字段可放入 `params.extra_body`；非敏感自定义头放入 `extra_headers`。鉴权头禁止写入配置，必须使用 `api_key_env`。
 
@@ -229,7 +230,7 @@ profiles:
 
 ## 自动化运行与恢复
 
-`run.yaml` 展开 `模型配置 × 场景 × trial` 为稳定 job ID。默认全局并发为 1；每个 profile 还可独立限制并发和 QPS。
+`run.yaml` 展开 `模型配置 × 场景 × trial` 为稳定 job ID。默认全局并发为 10，且全局与单模型并发上限均为 10；每个 profile 还可独立限制并发和 QPS。默认单次请求总超时为 1800 秒（半小时）。
 
 实际并发槽位上限是 `min(run.yaml 的全局 concurrency, 模型 limits.concurrency)`。QPS 控制的是请求启动频率：例如并发槽位为 5、`qps: 1` 时，请求仍会每秒只启动一个；只有单次请求耗时超过 1 秒时才会逐渐出现多个同时在途的请求。
 

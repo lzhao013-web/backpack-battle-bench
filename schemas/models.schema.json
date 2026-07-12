@@ -171,8 +171,9 @@
       "additionalProperties": false,
       "properties": {
         "concurrency": {
-          "default": 1,
-          "exclusiveMinimum": 0,
+          "default": 10,
+          "maximum": 10,
+          "minimum": 1,
           "title": "Concurrency",
           "type": "integer"
         },
@@ -197,7 +198,7 @@
           "type": "integer"
         },
         "timeout_seconds": {
-          "default": 120.0,
+          "default": 1800.0,
           "exclusiveMinimum": 0,
           "title": "Timeout Seconds",
           "type": "number"

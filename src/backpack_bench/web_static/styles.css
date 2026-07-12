@@ -311,9 +311,10 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 72%, transparent); }
 }
 .effect-marker.is-target { background: var(--effect); color: #fff; }
 .board.is-drop-invalid { border-color: var(--danger); }
-.cell-coordinate { position: absolute; top: 4px; left: 6px; color: var(--muted); font-size: 9px; }
-.cell-item { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 700; }
-.cell-instance { position: absolute; right: 5px; bottom: 4px; color: var(--muted); font-size: 9px; }
+.cell-coordinate { position: absolute; z-index: 3; top: 4px; left: 6px; padding: 1px 3px; border-radius: 4px; background: color-mix(in srgb, var(--surface) 76%, transparent); color: var(--muted); font-size: 9px; }
+.cell-item-image-viewport { position: absolute; z-index: 0; inset: 2px; overflow: hidden; border-radius: 8px; pointer-events: none; }
+.cell-item-image { position: absolute; display: block; max-width: none; object-fit: fill; pointer-events: none; user-select: none; }
+.cell-instance { position: absolute; z-index: 3; right: 5px; bottom: 4px; padding: 1px 3px; border-radius: 4px; background: color-mix(in srgb, var(--surface) 76%, transparent); color: var(--muted); font-size: 9px; }
 .layout-message { min-height: 28px; padding: 8px 4px 0; color: var(--muted); font-size: 11px; text-align: center; }
 .layout-message.is-error { color: var(--danger); }
 
@@ -323,9 +324,6 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 72%, transparent); }
   top: -1000px;
   left: -1000px;
   z-index: 9999;
-  display: grid;
-  grid-template-columns: repeat(var(--ghost-cols), 24px);
-  gap: 3px;
   padding: 6px;
   border: 1px solid var(--border-strong);
   border-radius: 9px;
@@ -333,9 +331,7 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 72%, transparent); }
   box-shadow: var(--shadow);
   pointer-events: none;
 }
-.drag-ghost i { width: 24px; height: 24px; border-radius: 5px; background: transparent; }
-.drag-ghost.is-weapon i.is-filled { background: var(--weapon); }
-.drag-ghost.is-support i.is-filled { background: var(--support); }
+.drag-ghost img { display: block; max-width: none; object-fit: fill; user-select: none; }
 
 .score-panel { display: grid; gap: 13px; }
 .score-orbit { display: flex; align-items: end; justify-content: space-between; gap: 12px; }

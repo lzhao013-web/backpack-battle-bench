@@ -348,9 +348,9 @@ class RequestParams(StrictModel):
 
 
 class ProviderLimits(StrictModel):
-    concurrency: PositiveInt = 1
+    concurrency: int = Field(default=10, ge=1, le=10)
     qps: PositiveFloat | None = None
-    timeout_seconds: PositiveFloat = 120.0
+    timeout_seconds: PositiveFloat = 1800.0
     retries: int = Field(default=3, ge=0, le=10)
 
 
@@ -433,7 +433,7 @@ class RunPlan(StrictModel):
     models: str
     model_ids: list[str] | None = None
     trials: PositiveInt = 1
-    concurrency: PositiveInt = 1
+    concurrency: int = Field(default=10, ge=1, le=10)
     prompt_mode: Literal["text", "visual_shape", "visual_full"] = "text"
     database: str = ".bbbench/results.sqlite3"
     artifacts: str = ".bbbench/artifacts"

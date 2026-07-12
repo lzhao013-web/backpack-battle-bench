@@ -3,7 +3,7 @@ id: visual-ladder-v2
 suite: ../suites/ladder-v2.yaml
 models: models.example.yaml
 trials: 3
-concurrency: 5
+concurrency: 10
 prompt_mode: visual_full
 database: ../.bbbench/results.sqlite3
 artifacts: ../.bbbench/artifacts

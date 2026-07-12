@@ -243,12 +243,12 @@
                 <input id="api-temperature" type="number" step="0.1" placeholder="留空使用服务默认">
               </label>
               <label>
-                <span>超时（秒）</span>
-                <input id="api-timeout" type="number" min="1" step="1" value="120">
+                <span>单次请求总超时（秒）</span>
+                <input id="api-timeout" type="number" min="1" step="1" value="1800">
               </label>
               <label>
                 <span>单模型并发槽位</span>
-                <input id="api-concurrency" type="number" min="1" step="1" value="1">
+                <input id="api-concurrency" type="number" min="1" max="10" step="1" value="10">
               </label>
               <label>
                 <span>QPS</span>

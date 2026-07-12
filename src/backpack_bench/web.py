@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import io
 import json
 import os
 import shutil
@@ -23,6 +24,7 @@ from fastapi.responses import (
     StreamingResponse,
 )
 from fastapi.staticfiles import StaticFiles
+from PIL import Image
 from pydantic import Field, HttpUrl, SecretStr
 from starlette.responses import Response
 
@@ -630,13 +632,42 @@ def create_app(workspace: Path | None = None) -> FastAPI:
         )
 
     @app.get("/api/suites/{suite_id}/items/{item_id}/image")
-    async def item_image(suite_id: str, item_id: str) -> FileResponse:
+    async def item_image(
+        suite_id: str,
+        item_id: str,
+        rotation: int = Query(0),
+    ) -> Response:
         suite = context.suite(suite_id)
         try:
             _, path = suite.visual_pack.asset(item_id)
         except KeyError as error:
             raise HTTPException(status_code=404, detail=str(error)) from error
-        return FileResponse(path)
+        definition = next((item for item in suite.catalog.items if item.id == item_id), None)
+        if definition is None:
+            raise HTTPException(status_code=404, detail=f"unknown item: {item_id}")
+        if rotation not in {0, 90, 180, 270}:
+            raise HTTPException(status_code=400, detail=f"invalid rotation: {rotation}")
+        if rotation not in definition.rotations:
+            raise HTTPException(
+                status_code=400,
+                detail=f"item {item_id} does not allow rotation {rotation}",
+            )
+        if rotation == 0:
+            return FileResponse(path)
+        transpose = {
+            90: Image.Transpose.ROTATE_270,
+            180: Image.Transpose.ROTATE_180,
+            270: Image.Transpose.ROTATE_90,
+        }[rotation]
+        with Image.open(path) as source:
+            rotated = source.convert("RGBA").transpose(transpose)
+            buffer = io.BytesIO()
+            rotated.save(buffer, format="PNG", optimize=True)
+        return Response(
+            content=buffer.getvalue(),
+            media_type="image/png",
+            headers={"Cache-Control": "public, max-age=3600"},
+        )
 
     @app.get("/api/suites/{suite_id}/items/{item_id}/card")
     async def item_card(suite_id: str, item_id: str) -> FileResponse:

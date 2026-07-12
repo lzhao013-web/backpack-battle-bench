@@ -361,7 +361,6 @@ async def _call_once(
     job: JobContext,
     client: httpx.AsyncClient,
     api_key: str | None,
-    limiter: RateLimiter,
     registry: PluginRegistry,
     token_progress: TokenProgressCallback,
 ) -> AttemptOutcome:
@@ -369,7 +368,6 @@ async def _call_once(
     endpoint = adapter.endpoint(job.profile)
     headers = adapter.headers(job.profile, api_key)
     body = adapter.body(job.profile, job.prompt, job.prompt_image)
-    await limiter.wait()
     await token_progress(0, True, True)
     started = time.perf_counter()
     http_status: int | None = None
@@ -650,6 +648,40 @@ async def _call_once(
         )
 
 
+async def _call_once_with_total_timeout(
+    job: JobContext,
+    client: httpx.AsyncClient,
+    api_key: str | None,
+    registry: PluginRegistry,
+    token_progress: TokenProgressCallback,
+) -> AttemptOutcome:
+    """Enforce a wall-clock request deadline in addition to HTTP inactivity timeouts."""
+    timeout_seconds = job.profile.limits.timeout_seconds
+    started = time.perf_counter()
+    try:
+        async with asyncio.timeout(timeout_seconds):
+            return await _call_once(
+                job,
+                client,
+                api_key,
+                registry,
+                token_progress,
+            )
+    except TimeoutError:
+        return AttemptOutcome(
+            retryable=True,
+            error_type="api_timeout",
+            error_message=(f"request exceeded total timeout of {timeout_seconds:g} seconds"),
+            http_status=None,
+            response_json=None,
+            response_text=None,
+            completion=None,
+            validation=None,
+            latency_ms=(time.perf_counter() - started) * 1000,
+            retry_after=None,
+        )
+
+
 def _usage_tokens(usage: dict[str, Any]) -> tuple[int, int, int, int]:
     input_tokens = int(usage.get("prompt_tokens", usage.get("input_tokens", 0)) or 0)
     output_tokens = int(usage.get("completion_tokens", usage.get("output_tokens", 0)) or 0)
@@ -796,12 +828,12 @@ async def _execute_job(
         final_artifact_dir: Path | None = None
         for offset in range(job.profile.limits.retries + 1):
             attempt_no = first_attempt + offset
+            await limiter.wait()
             started_at = utc_now()
-            outcome = await _call_once(
+            outcome = await _call_once_with_total_timeout(
                 job,
                 client,
                 api_key,
-                limiter,
                 plan.registry,
                 token_reporter.report,
             )

@@ -1,13 +1,15 @@
 import json
 from pathlib import Path
 
-from pydantic import BaseModel
+import pytest
+from pydantic import BaseModel, ValidationError
 
 from backpack_bench.schemas import (
     GeneratorSpec,
     ItemCatalogSpec,
     ModelsConfig,
     PlacementAnswer,
+    ProviderLimits,
     RunPlan,
     ScenarioDocumentSpec,
     SuiteSpec,
@@ -15,6 +17,18 @@ from backpack_bench.schemas import (
 )
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_global_execution_defaults() -> None:
+    limits = ProviderLimits()
+    assert limits.timeout_seconds == 1800
+    assert limits.concurrency == 10
+    plan = RunPlan(id="defaults", suite="suite.yaml", models="models.yaml")
+    assert plan.concurrency == 10
+    with pytest.raises(ValidationError):
+        ProviderLimits(concurrency=11)
+    with pytest.raises(ValidationError):
+        RunPlan(id="too-wide", suite="suite.yaml", models="models.yaml", concurrency=11)
 
 
 def test_committed_json_schemas_are_current() -> None:
