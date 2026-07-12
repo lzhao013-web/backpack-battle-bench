@@ -930,9 +930,12 @@ async def execute_plan(
     resume_run_id: str | None = None,
     new_run_id: str | None = None,
     api_key_overrides: dict[str, str] | None = None,
+    rerun_job_id: str | None = None,
 ) -> dict[str, Any]:
     if resume_run_id is not None and new_run_id is not None:
         raise ValueError("resume_run_id and new_run_id are mutually exclusive")
+    if rerun_job_id is not None and resume_run_id is None:
+        raise ValueError("rerun_job_id requires resume_run_id")
     overrides = api_key_overrides or {}
     api_keys = {
         profile.id: overrides[profile.id] if profile.id in overrides else resolve_api_key(profile)
@@ -958,7 +961,11 @@ async def execute_plan(
                 raise ValueError("resume run does not match the supplied plan/suite hashes")
             if storage.has_engine_oracle_inconsistency(run_id):
                 raise ValueError("a run with an engine/Oracle inconsistency cannot be resumed")
-            storage.reset_interrupted(run_id)
+            if rerun_job_id is not None:
+                if not storage.reset_zero_score_job(run_id, rerun_job_id):
+                    raise ValueError(f"job {rerun_job_id} is not a completed zero-score job")
+            else:
+                storage.reset_interrupted(run_id)
             run_registered = True
         else:
             storage.create_run(

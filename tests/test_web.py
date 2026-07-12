@@ -21,6 +21,7 @@ from backpack_bench.schemas import (
     ProviderLimits,
     RunPlan,
 )
+from backpack_bench.storage import Storage
 from backpack_bench.web import create_app
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -101,6 +102,30 @@ class WebSlowAsyncClient:
         await asyncio.sleep(30)
         raise AssertionError("slow request should be cancelled")
         yield openai_stream_response("{}")
+
+    async def aclose(self) -> None:
+        pass
+
+
+class WebRerunAsyncClient:
+    prompt_answers: dict[str, str] = {}
+    calls = 0
+
+    def __init__(self, **_: object) -> None:
+        pass
+
+    @asynccontextmanager
+    async def stream(
+        self,
+        method: str,
+        url: str,
+        headers: dict[str, str],
+        json: dict[str, Any],
+    ) -> AsyncIterator[httpx.Response]:
+        WebRerunAsyncClient.calls += 1
+        prompt = json["messages"][0]["content"]
+        answer = "not-json" if WebRerunAsyncClient.calls == 1 else self.prompt_answers[prompt]
+        yield openai_stream_response(answer)
 
     async def aclose(self) -> None:
         pass
@@ -563,6 +588,106 @@ def test_web_can_run_multiple_benchmarks_at_once(
                 stopped = await client.post(f"/api/run-configs/{config_id}/runs/{run_id}/stop")
                 assert stopped.status_code == 202
                 assert stopped.json()["status"] == "interrupted"
+
+    asyncio.run(exercise())
+
+
+def test_web_can_rerun_one_zero_score_job(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    config_dir = tmp_path / "configs"
+    models = ModelsConfig(
+        profiles=[
+            ModelProfile(
+                id="web-rerun-zero",
+                protocol="openai_chat",
+                base_url=HttpUrl("https://rerun.test/v1"),
+                model="rerun-model",
+                auth_mode="none",
+                limits=ProviderLimits(concurrency=1, retries=0),
+            )
+        ]
+    )
+    atomic_write_yaml(config_dir / "models.yaml", models)
+    run_path = config_dir / "run.yaml"
+    atomic_write_yaml(
+        run_path,
+        RunPlan(
+            id="web-rerun-zero",
+            suite=str(ROOT / "suites" / "smoke-v1.yaml"),
+            models="models.yaml",
+            trials=2,
+            concurrency=1,
+            database="../data/results.sqlite3",
+            artifacts="../data/artifacts",
+            reports="../data/reports",
+        ),
+    )
+    resolved = resolve_plan(run_path, PluginRegistry(load_external=False))
+    WebRerunAsyncClient.prompt_answers = {
+        item.prompt: json.dumps(item.oracle.witness.model_dump(mode="json"), ensure_ascii=False)
+        for item in resolved.suite.scenarios
+        if item.oracle.witness is not None
+    }
+    WebRerunAsyncClient.calls = 0
+    monkeypatch.setattr("backpack_bench.runner.httpx.AsyncClient", WebRerunAsyncClient)
+
+    async def wait_for_completion(
+        client: httpx.AsyncClient, config_id: str, run_id: str
+    ) -> dict[str, Any]:
+        for _ in range(100):
+            payload = (await client.get(f"/api/run-configs/{config_id}/runs/{run_id}")).json()
+            if payload["status"] == "completed":
+                return cast(dict[str, Any], payload)
+            await asyncio.sleep(0.02)
+        raise AssertionError("run did not complete")
+
+    async def exercise() -> None:
+        app = create_app(tmp_path)
+        transport = httpx.ASGITransport(app=app)
+        async with (
+            app.router.lifespan_context(app),
+            REAL_ASYNC_CLIENT(transport=transport, base_url="http://test") as client,
+        ):
+            config_id = (await client.get("/api/run-configs")).json()[0]["id"]
+            started = await client.post(f"/api/run-configs/{config_id}/runs")
+            run_id = started.json()["run_id"]
+            first = await wait_for_completion(client, config_id, run_id)
+            assert first["progress"]["valid"] == 1
+            zero_jobs = [job for job in first["jobs"] if job["actual_attack"] == 0]
+            assert len(zero_jobs) == 1
+            job_id = zero_jobs[0]["job_id"]
+
+            rerun = await client.post(
+                f"/api/run-configs/{config_id}/runs/{run_id}/jobs/{job_id}/rerun"
+            )
+            assert rerun.status_code == 202
+            assert rerun.json()["job_id"] == job_id
+            second = await wait_for_completion(client, config_id, run_id)
+            assert second["progress"]["valid"] == 2
+            assert all(job["actual_attack"] != 0 for job in second["jobs"])
+            assert second["report"]["profiles"][0]["overall_score"] == 100
+            assert WebRerunAsyncClient.calls == 3
+
+            storage = Storage(tmp_path / "data" / "results.sqlite3")
+            try:
+                attempts = storage.connection.execute(
+                    """
+                    SELECT j.job_id, COUNT(a.attempt_id) AS attempts
+                    FROM jobs j
+                    JOIN attempts a ON a.job_id=j.job_id
+                    WHERE j.run_id=?
+                    GROUP BY j.job_id
+                    ORDER BY attempts
+                    """,
+                    (run_id,),
+                ).fetchall()
+                assert [row["attempts"] for row in attempts] == [1, 2]
+            finally:
+                storage.close()
+
+            no_zeros = await client.post(
+                f"/api/run-configs/{config_id}/runs/{run_id}/jobs/{job_id}/rerun"
+            )
+            assert no_zeros.status_code == 409
 
     asyncio.run(exercise())
 

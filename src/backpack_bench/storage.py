@@ -290,6 +290,34 @@ class Storage:
         )
         self.connection.commit()
 
+    def reset_zero_score_job(self, run_id: str, job_id: str) -> bool:
+        """Keep prior attempts but make one completed zero-score job runnable again."""
+        row = self.connection.execute(
+            """
+            SELECT j.job_id
+            FROM jobs j
+            JOIN results r ON r.job_id=j.job_id
+            WHERE j.run_id=? AND j.job_id=? AND j.status='completed' AND r.actual_attack=0
+            """,
+            (run_id, job_id),
+        ).fetchone()
+        if row is None:
+            return False
+        self.connection.execute("DELETE FROM results WHERE job_id=?", (job_id,))
+        self.connection.execute(
+            """
+            UPDATE jobs
+            SET status='pending', live_output_tokens=NULL, live_tokens_estimated=NULL
+            WHERE job_id=?
+            """,
+            (job_id,),
+        )
+        self.connection.execute(
+            "UPDATE runs SET status='running', completed_at=NULL WHERE run_id=?", (run_id,)
+        )
+        self.connection.commit()
+        return True
+
     def set_job_status(self, job_id: str, status: str) -> None:
         if status == "running":
             self.connection.execute(

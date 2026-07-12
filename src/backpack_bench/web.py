@@ -111,6 +111,7 @@ class WebRunManager:
         plan: ResolvedPlan,
         resume_run_id: str | None = None,
         api_key_overrides: dict[str, str] | None = None,
+        rerun_job_id: str | None = None,
     ) -> ManagedRun:
         overrides = api_key_overrides or {}
         for profile in plan.profiles:
@@ -123,7 +124,9 @@ class WebRunManager:
                 raise RuntimeError(f"run {run_id} is already running")
             state = ManagedRun(run_id=run_id, config_id=config_id, status="starting")
             self.states[run_id] = state
-            task = asyncio.create_task(self._worker(state, plan, resume_run_id, overrides))
+            task = asyncio.create_task(
+                self._worker(state, plan, resume_run_id, overrides, rerun_job_id)
+            )
             self.tasks[run_id] = task
             return state
 
@@ -133,6 +136,7 @@ class WebRunManager:
         plan: ResolvedPlan,
         resume_run_id: str | None,
         api_key_overrides: dict[str, str],
+        rerun_job_id: str | None,
     ) -> None:
         state.status = "running"
         try:
@@ -141,6 +145,7 @@ class WebRunManager:
                 resume_run_id=resume_run_id,
                 new_run_id=None if resume_run_id else state.run_id,
                 api_key_overrides=api_key_overrides,
+                rerun_job_id=rerun_job_id,
             )
             state.status = str(state.result["status"])
         except asyncio.CancelledError:
@@ -802,6 +807,61 @@ def create_app(workspace: Path | None = None) -> FastAPI:
         except RuntimeError as error:
             raise HTTPException(status_code=409, detail=str(error)) from error
         return {"run_id": managed.run_id, "status": managed.status}
+
+    @app.post(
+        "/api/run-configs/{config_id}/runs/{run_id}/jobs/{job_id}/rerun",
+        status_code=status.HTTP_202_ACCEPTED,
+    )
+    async def rerun_zero_score_job(
+        config_id: str,
+        run_id: str,
+        job_id: str,
+        request: WebRunRequest | None = None,
+    ) -> dict[str, Any]:
+        base_plan = context.run_config(config_id)
+        try:
+            plan, api_key_overrides = _runtime_plan(
+                base_plan,
+                request.profile if request is not None else None,
+            )
+        except ValueError as error:
+            raise HTTPException(status_code=400, detail=str(error)) from error
+        storage = Storage(plan.database)
+        try:
+            run = storage.get_run(run_id)
+            if run is None:
+                raise HTTPException(status_code=404, detail=f"unknown run: {run_id}")
+            if run["plan_hash"] != plan.plan_hash:
+                raise HTTPException(status_code=409, detail="run does not match this config")
+            if run["status"] != "completed":
+                raise HTTPException(status_code=409, detail="只有已完成的 Run 可以重跑 Job")
+            job = next(
+                (row for row in storage.run_job_rows(run_id) if row["job_id"] == job_id),
+                None,
+            )
+            if job is None:
+                raise HTTPException(status_code=404, detail=f"unknown job: {job_id}")
+            if job["result_job_id"] is None or int(job["actual_attack"]) != 0:
+                raise HTTPException(status_code=409, detail="只有得分为 0 的 Job 可以重跑")
+        finally:
+            storage.close()
+        try:
+            managed = await manager.start(
+                config_id,
+                plan,
+                resume_run_id=run_id,
+                api_key_overrides=api_key_overrides,
+                rerun_job_id=job_id,
+            )
+        except ValueError as error:
+            raise HTTPException(status_code=400, detail=str(error)) from error
+        except RuntimeError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+        return {
+            "run_id": managed.run_id,
+            "status": managed.status,
+            "job_id": job_id,
+        }
 
     @app.get("/api/run-configs/{config_id}/runs/{run_id}")
     async def run_status(config_id: str, run_id: str) -> dict[str, Any]:

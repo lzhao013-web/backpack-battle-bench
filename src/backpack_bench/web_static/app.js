@@ -1494,13 +1494,13 @@ function renderReportProfiles(report) {
   });
 }
 
-function renderRunJobs(jobs) {
+function renderRunJobs(jobs, runStatus) {
   const tbody = $("#run-jobs-table");
   tbody.replaceChildren();
   if (!jobs.length) {
     const row = document.createElement("tr");
     const cell = document.createElement("td");
-    cell.colSpan = 6;
+    cell.colSpan = 7;
     cell.className = "empty-cell";
     cell.textContent = "任务尚未展开";
     row.append(cell);
@@ -1535,7 +1535,21 @@ function renderRunJobs(jobs) {
     tokens.textContent = job.output_tokens == null
       ? "—"
       : `${job.output_tokens_estimated ? "≈" : ""}${Number(job.output_tokens).toLocaleString("zh-CN")}`;
-    row.append(status, scenario, trial, score, latency, tokens);
+    const action = document.createElement("td");
+    if (runStatus === "completed" && job.actual_attack === 0) {
+      const rerun = document.createElement("button");
+      rerun.type = "button";
+      rerun.className = "button job-rerun-button";
+      rerun.textContent = "重跑";
+      rerun.addEventListener("click", (event) => {
+        event.stopPropagation();
+        rerunZeroScoreJob(job, rerun);
+      });
+      action.append(rerun);
+    } else {
+      action.textContent = "—";
+    }
+    row.append(status, scenario, trial, score, latency, tokens, action);
     tbody.append(row);
   });
 }
@@ -1597,7 +1611,7 @@ function renderRunProgress(payload) {
   stopButton.disabled = payload.status === "stopping";
   stopButton.textContent = payload.status === "stopping" ? "中断中…" : "中断";
   $("#delete-run").hidden = canStop;
-  renderRunJobs(payload.jobs || []);
+  renderRunJobs(payload.jobs || [], payload.status);
   updateRunListRow(payload);
   $("#start-run").disabled = !runSourceReady();
 }
@@ -1703,6 +1717,32 @@ async function resumeRun() {
     setRunNotice(error.message, true);
   } finally {
     $("#resume-run").disabled = false;
+  }
+}
+
+async function rerunZeroScoreJob(job, button) {
+  if (!state.runConfigId || !state.selectedRunId) return;
+  if (!runSourceReady()) {
+    renderRunPreview();
+    return;
+  }
+  if (!window.confirm(
+    `确定重跑 ${job.title || job.scenario_id} · Trial ${job.trial}？旧尝试会保留，新请求会追加为后续 Attempt。`,
+  )) return;
+  if (usingBrowserProfile()) flushApiHistorySave(true);
+  button.disabled = true;
+  setRunNotice(`正在准备重跑 ${job.title || job.scenario_id} · Trial ${job.trial}…`);
+  try {
+    const payload = await api(
+      `/api/run-configs/${encodeURIComponent(state.runConfigId)}/runs/${encodeURIComponent(state.selectedRunId)}/jobs/${encodeURIComponent(job.job_id)}/rerun`,
+      { method: "POST", body: JSON.stringify(currentRunRequest()) },
+    );
+    setRunNotice(`Run ${payload.run_id} 正在重跑 Job ${payload.job_id}`);
+    await loadRunStatus(payload.run_id);
+  } catch (error) {
+    setRunNotice(error.message, true);
+  } finally {
+    button.disabled = false;
   }
 }
 
