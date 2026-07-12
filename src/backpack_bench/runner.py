@@ -19,14 +19,19 @@ import httpx
 from rich.console import Console
 
 from backpack_bench import __version__
-from backpack_bench.canonical import content_hash
+from backpack_bench.canonical import content_hash, text_hash
 from backpack_bench.evaluation import parse_and_score_output
-from backpack_bench.io import atomic_write_json, atomic_write_text, load_yaml
+from backpack_bench.io import atomic_write_bytes, atomic_write_json, atomic_write_text, load_yaml
 from backpack_bench.plugins import PluginRegistry
-from backpack_bench.prompt import PROMPT_TEMPLATE_VERSION
+from backpack_bench.prompt import (
+    PROMPT_TEMPLATE_VERSION,
+    VISUAL_PROMPT_TEMPLATE_VERSION,
+    render_visual_prompt,
+)
 from backpack_bench.providers import adapter_for
 from backpack_bench.providers.base import (
     ParsedCompletion,
+    PromptImage,
     profile_hash,
     redact_headers,
     redact_secret_values,
@@ -37,6 +42,12 @@ from backpack_bench.storage import DbWriter, Storage
 from backpack_bench.suite import ResolvedScenario, ResolvedSuite, load_suite
 
 runner_console = Console(stderr=True, highlight=False)
+
+
+def benchmark_suite_id(plan: ResolvedPlan) -> str:
+    if plan.spec.prompt_mode == "text":
+        return plan.suite.spec.id
+    return f"{plan.suite.spec.id}@{plan.spec.prompt_mode}"
 
 
 def utc_now() -> str:
@@ -73,6 +84,8 @@ class JobContext:
     profile: ModelProfile
     profile_hash: str
     scenario: ResolvedScenario
+    prompt: str
+    prompt_image: PromptImage | None
     trial: int
 
 
@@ -246,6 +259,21 @@ def build_jobs(plan: ResolvedPlan, run_id: str) -> list[JobContext]:
     for profile in plan.profiles:
         current_profile_hash = profile_hash(profile)
         for resolved_scenario in plan.suite.scenarios:
+            if plan.spec.prompt_mode == "text":
+                prompt = resolved_scenario.prompt
+                prompt_image = None
+            else:
+                prompt = render_visual_prompt(
+                    resolved_scenario.scenario,
+                    plan.registry,
+                    plan.spec.prompt_mode,
+                )
+                sheet_path = plan.suite.visual_pack.scenario_sheet(
+                    resolved_scenario.scenario.id,
+                    resolved_scenario.entry.scenario_hash,
+                    plan.spec.prompt_mode,
+                )
+                prompt_image = PromptImage(str(sheet_path))
             for trial in range(1, plan.spec.trials + 1):
                 job_id = content_hash(
                     {
@@ -262,6 +290,8 @@ def build_jobs(plan: ResolvedPlan, run_id: str) -> list[JobContext]:
                         profile=profile,
                         profile_hash=current_profile_hash,
                         scenario=resolved_scenario,
+                        prompt=prompt,
+                        prompt_image=prompt_image,
                         trial=trial,
                     )
                 )
@@ -273,6 +303,7 @@ def dry_run_summary(plan: ResolvedPlan) -> dict[str, Any]:
         "plan_id": plan.spec.id,
         "plan_hash": plan.plan_hash,
         "suite_id": plan.suite.spec.id,
+        "leaderboard_suite_id": benchmark_suite_id(plan),
         "suite_hash": plan.suite.suite_hash,
         "profiles": [
             {
@@ -287,6 +318,7 @@ def dry_run_summary(plan: ResolvedPlan) -> dict[str, Any]:
         "trials": plan.spec.trials,
         "jobs": len(plan.profiles) * len(plan.suite.scenarios) * plan.spec.trials,
         "concurrency": plan.spec.concurrency,
+        "prompt_mode": plan.spec.prompt_mode,
         "database": str(plan.database),
         "artifacts": str(plan.artifacts),
         "reports": str(plan.reports),
@@ -318,7 +350,7 @@ async def _call_once(
     adapter = adapter_for(job.profile)
     endpoint = adapter.endpoint(job.profile)
     headers = adapter.headers(job.profile, api_key)
-    body = adapter.body(job.profile, job.scenario.prompt)
+    body = adapter.body(job.profile, job.prompt, job.prompt_image)
     await limiter.wait()
     await token_progress(0, True, True)
     started = time.perf_counter()
@@ -419,6 +451,7 @@ async def _call_once(
             response_id: str | None = None
             direct_completion: ParsedCompletion | None = None
             parsed_events = 0
+
             async for line in response.aiter_lines():
                 raw_lines.append(line)
                 data = line.strip()
@@ -624,13 +657,27 @@ def _attempt_artifact(
     error_type, error_message = _attempt_failure(outcome)
     path = plan.artifacts / job.run_id / job.job_id / f"attempt_{attempt_no:03d}"
     path.mkdir(parents=True, exist_ok=False)
+    request_body = adapter.body(job.profile, job.prompt, job.prompt_image)
+    messages = request_body.get("messages")
+    if job.prompt_image is not None and isinstance(messages, list) and messages:
+        content = messages[0].get("content") if isinstance(messages[0], dict) else None
+        if isinstance(content, list):
+            for block in content:
+                if not isinstance(block, dict):
+                    continue
+                image_url = block.get("image_url")
+                if isinstance(image_url, dict) and "url" in image_url:
+                    image_url["url"] = "<omitted:image/png>"
+                source = block.get("source")
+                if isinstance(source, dict) and "data" in source:
+                    source["data"] = "<omitted:image/png>"
     atomic_write_json(
         path / "request.json",
         redact_secret_values(
             {
                 "url": adapter.endpoint(job.profile),
                 "headers": redact_headers(adapter.headers(job.profile, api_key)),
-                "body": adapter.body(job.profile, job.scenario.prompt),
+                "body": request_body,
             },
             api_key,
         ),
@@ -843,7 +890,7 @@ async def execute_plan(
                     "run_id": run_id,
                     "plan_id": plan.spec.id,
                     "plan_hash": plan.plan_hash,
-                    "suite_id": plan.suite.spec.id,
+                    "suite_id": benchmark_suite_id(plan),
                     "suite_hash": plan.suite.suite_hash,
                     "status": "running",
                     "started_at": utc_now(),
@@ -864,6 +911,7 @@ async def execute_plan(
                     ),
                 }
             )
+        scenario_inputs = {job.scenario.entry.scenario_hash: job for job in jobs}
         for scenario in plan.suite.scenarios:
             storage.register_scenario(
                 {
@@ -879,7 +927,15 @@ async def execute_plan(
                 plan.artifacts / run_id / "prompts" / f"{scenario.entry.scenario_hash}.txt"
             )
             if not prompt_path.exists():
-                atomic_write_text(prompt_path, scenario.prompt)
+                current_input = scenario_inputs[scenario.entry.scenario_hash]
+                atomic_write_text(prompt_path, current_input.prompt)
+                if current_input.prompt_image is not None:
+                    image_path = (
+                        plan.artifacts / run_id / "inputs" / f"{scenario.entry.scenario_hash}.png"
+                    )
+                    atomic_write_bytes(
+                        image_path, Path(current_input.prompt_image.path).read_bytes()
+                    )
         for job in jobs:
             storage.create_job(
                 {
@@ -899,11 +955,18 @@ async def execute_plan(
                     "run_id": run_id,
                     "plan_hash": plan.plan_hash,
                     "suite_hash": plan.suite.suite_hash,
+                    "item_catalog_hash": plan.suite.catalog_hash,
+                    "visual_pack_hash": plan.suite.visual_pack.pack_hash,
                     "engine_version": __version__,
-                    "prompt_template_version": PROMPT_TEMPLATE_VERSION,
+                    "prompt_mode": plan.spec.prompt_mode,
+                    "prompt_template_version": (
+                        PROMPT_TEMPLATE_VERSION
+                        if plan.spec.prompt_mode == "text"
+                        else VISUAL_PROMPT_TEMPLATE_VERSION
+                    ),
                     "prompt_hashes": {
-                        scenario.entry.scenario_hash: scenario.prompt_hash
-                        for scenario in plan.suite.scenarios
+                        scenario_hash: text_hash(job.prompt)
+                        for scenario_hash, job in scenario_inputs.items()
                     },
                     "profiles": [profile_hash(profile) for profile in plan.profiles],
                     "jobs": len(jobs),

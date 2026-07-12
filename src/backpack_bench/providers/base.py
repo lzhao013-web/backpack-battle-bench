@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import os
 from dataclasses import dataclass, field
 from typing import Any, Protocol
@@ -28,12 +29,30 @@ class ParsedStreamEvent:
     response_id: str | None = None
 
 
+@dataclass(frozen=True)
+class PromptImage:
+    path: str
+    media_type: str = "image/png"
+
+    def base64_data(self) -> str:
+        with open(self.path, "rb") as file:
+            return base64.b64encode(file.read()).decode("ascii")
+
+    def data_url(self) -> str:
+        return f"data:{self.media_type};base64,{self.base64_data()}"
+
+
 class ProviderAdapter(Protocol):
     def endpoint(self, profile: ModelProfile) -> str: ...
 
     def headers(self, profile: ModelProfile, api_key: str | None) -> dict[str, str]: ...
 
-    def body(self, profile: ModelProfile, prompt: str) -> dict[str, Any]: ...
+    def body(
+        self,
+        profile: ModelProfile,
+        prompt: str,
+        image: PromptImage | None = None,
+    ) -> dict[str, Any]: ...
 
     def parse(self, value: Any) -> ParsedCompletion: ...
 

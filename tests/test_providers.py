@@ -1,8 +1,10 @@
+from pathlib import Path
+
 import pytest
 from pydantic import ValidationError
 
 from backpack_bench.providers.anthropic import AnthropicMessagesAdapter
-from backpack_bench.providers.base import profile_hash
+from backpack_bench.providers.base import PromptImage, profile_hash
 from backpack_bench.providers.openai import OpenAIChatAdapter
 from backpack_bench.schemas import ModelProfile
 
@@ -118,6 +120,38 @@ def test_anthropic_default_omits_max_tokens() -> None:
     body = AnthropicMessagesAdapter().body(profile, "prompt")
     assert body["stream"] is True
     assert "max_tokens" not in body
+
+
+def test_multimodal_image_mapping(tmp_path: Path) -> None:
+    image_path = tmp_path / "sheet.png"
+    image_path.write_bytes(b"fake-png")
+    image = PromptImage(str(image_path))
+    openai_profile = ModelProfile.model_validate(
+        {
+            "id": "openai-vision",
+            "protocol": "openai_chat",
+            "base_url": "https://example.test/v1",
+            "model": "vision",
+            "auth_mode": "none",
+        }
+    )
+    anthropic_profile = openai_profile.model_copy(
+        update={"id": "anthropic-vision", "protocol": "anthropic_messages"}
+    )
+    openai_content = OpenAIChatAdapter().body(openai_profile, "prompt", image)["messages"][0][
+        "content"
+    ]
+    assert openai_content[0] == {"type": "text", "text": "prompt"}
+    assert openai_content[1]["image_url"]["url"].startswith("data:image/png;base64,")
+    anthropic_content = AnthropicMessagesAdapter().body(anthropic_profile, "prompt", image)[
+        "messages"
+    ][0]["content"]
+    assert anthropic_content[0] == {"type": "text", "text": "prompt"}
+    assert anthropic_content[1]["source"] == {
+        "type": "base64",
+        "media_type": "image/png",
+        "data": "ZmFrZS1wbmc=",
+    }
 
 
 def test_manual_anthropic_thinking_requires_valid_output_budget() -> None:

@@ -174,6 +174,7 @@ def test_web_scenario_lab_uses_real_validator() -> None:
             root = await client.get("/")
             assert root.status_code == 200
             assert "Backpack Battle Bench" in root.text
+            assert '<option value="xhigh">xhigh</option>' in root.text
             script = (await client.get("/assets/app.js")).text
             styles = await client.get("/assets/styles.css")
             assert styles.status_code == 200
@@ -203,63 +204,44 @@ def test_web_scenario_lab_uses_real_validator() -> None:
             queried_ids = set(re.findall(r'\$\("#([^"]+)"\)', script))
             assert queried_ids <= html_ids
             suites = (await client.get("/api/suites")).json()
-            assert {suite["id"] for suite in suites} == {
-                "smoke-v1",
-                "core-v1",
-                "ladder-v1",
-                "ladder-v2",
-            }
-            detail = (await client.get("/api/suites/smoke-v1/scenarios/mixed-3x3")).json()
-            assert detail["oracle"]["optimal_attack"] == 21
-            assert len(detail["instances"]) == 10
-            sword = next(item for item in detail["instances"] if item["item_id"] == "iron_sword_1")
-            gem = next(item for item in detail["instances"] if item["item_id"] == "gem_1")
+            assert {suite["id"] for suite in suites} == {"smoke-v1", "ladder-v2"}
+            assert all(suite["visual_pack"]["status"] == "placeholder" for suite in suites)
+            detail = (await client.get("/api/suites/smoke-v1/scenarios/packing-3x3")).json()
+            assert "占用格偏移" not in detail["visual_prompts"]["visual_full"]
+            assert "每种物品的占用格、允许旋转、类别" in detail["visual_prompts"]["visual_full"]
+            assert "类别：武器；基础属性：攻击=6" in detail["visual_prompts"]["visual_shape"]
+            assert detail["oracle"]["optimal_attack"] == 18
+            assert len(detail["instances"]) == 8
+            sword = next(item for item in detail["instances"] if item["item_id"] == "great_blade_1")
             assert sword["category_label"] == "武器"
-            assert sword["stats_zh"] == {"攻击": 5}
-            assert "紧挨在它每个格子左侧和右侧" in gem["effect_descriptions"][0]
-            assert "初始局部方向" not in gem["effect_descriptions"][0]
-            assert "结算" not in gem["effect_descriptions"][0]
-            assert "weapon" not in gem["effect_descriptions"][0]
-            assert "attack" not in gem["effect_descriptions"][0]
+            assert sword["stats_zh"] == {"攻击": 6}
+            assert sword["catalog_id"] == "great_blade"
+            assert sword["image_url"].endswith("/items/great_blade/image")
+            image = await client.get(sword["image_url"])
+            assert image.status_code == 200
+            assert image.content.startswith(b"\x89PNG")
+            card = await client.get(sword["card_url"])
+            assert card.status_code == 200
+            assert card.content.startswith(b"\x89PNG")
+            sheet = await client.get(detail["sheet_url"])
+            assert sheet.status_code == 200
+            assert sheet.content.startswith(b"\x89PNG")
             evaluation = (
                 await client.post(
                     "/api/evaluate",
                     json={
                         "suite_id": "smoke-v1",
-                        "scenario_id": "mixed-3x3",
+                        "scenario_id": "packing-3x3",
                         "placements": detail["oracle"]["witness"]["placements"],
                     },
                 )
             ).json()
             assert evaluation["valid"]
-            assert evaluation["actual_attack"] == 21
+            assert evaluation["actual_attack"] == 18
             configs_text = (await client.get("/api/run-configs")).text
             assert "api_key_env" not in configs_text
 
     asyncio.run(exercise())
-
-
-def test_all_scenarios_run_config_expands_to_120_jobs() -> None:
-    plan = resolve_plan(
-        ROOT / "configs" / "run.all.yaml",
-        PluginRegistry(load_external=False),
-    )
-    summary = dry_run_summary(plan)
-    assert summary["suite_id"] == "core-v1"
-    assert summary["scenarios"] == 20
-    assert summary["jobs"] == 120
-
-
-def test_ladder_run_config_expands_to_30_jobs() -> None:
-    plan = resolve_plan(
-        ROOT / "configs" / "run.ladder.yaml",
-        PluginRegistry(load_external=False),
-    )
-    summary = dry_run_summary(plan)
-    assert summary["suite_id"] == "ladder-v1"
-    assert summary["scenarios"] == 5
-    assert summary["jobs"] == 30
-    assert summary["concurrency"] == 5
 
 
 def test_expanded_ladder_run_config_expands_to_90_jobs() -> None:
@@ -336,9 +318,9 @@ def test_web_can_start_and_report_mock_run(tmp_path: Path, monkeypatch: pytest.M
                 await asyncio.sleep(0.02)
             assert payload is not None
             assert payload["status"] == "completed"
-            assert payload["progress"]["total"] == 4
-            assert payload["progress"]["completed"] == 4
-            assert len(payload["jobs"]) == 4
+            assert payload["progress"]["total"] == 1
+            assert payload["progress"]["completed"] == 1
+            assert len(payload["jobs"]) == 1
             assert all(job["status"] == "completed" for job in payload["jobs"])
             assert all(job["output_tokens"] == 20 for job in payload["jobs"])
             assert all(not job["output_tokens_estimated"] for job in payload["jobs"])
@@ -351,7 +333,7 @@ def test_web_can_start_and_report_mock_run(tmp_path: Path, monkeypatch: pytest.M
             data_line = next(line for line in events.text.splitlines() if line.startswith("data: "))
             snapshot = json.loads(data_line.removeprefix("data: "))
             assert snapshot["status"] == "completed"
-            assert len(snapshot["jobs"]) == 4
+            assert len(snapshot["jobs"]) == 1
             assert all(job["output_tokens"] == 20 for job in snapshot["jobs"])
             csv = await client.get(f"/api/run-configs/{config_id}/runs/{run_id}/report?format=csv")
             assert csv.status_code == 200
@@ -361,7 +343,7 @@ def test_web_can_start_and_report_mock_run(tmp_path: Path, monkeypatch: pytest.M
             assert html.status_code == 200
             assert "<table>" in html.text
             assert "单题与 Trial 明细" in html.text
-            assert "mixed-3x3" in html.text
+            assert "packing-3x3" in html.text
             assert "验证明细" in html.text
             assert (tmp_path / "data" / "artifacts" / run_id).is_dir()
             assert (tmp_path / "data" / "reports" / run_id).is_dir()
@@ -448,7 +430,7 @@ def test_web_can_interrupt_an_active_run(tmp_path: Path, monkeypatch: pytest.Mon
             assert payload["status"] == "interrupted"
             assert payload["progress"]["running"] == 0
             assert payload["progress"]["pending"] == payload["progress"]["total"]
-            assert len(payload["jobs"]) == 8
+            assert len(payload["jobs"]) == 2
             assert all(job["status"] == "pending" for job in payload["jobs"])
             assert all(job["output_tokens"] is None for job in payload["jobs"])
             assert payload["report"] is not None
@@ -629,7 +611,7 @@ def test_web_runtime_api_profile_uses_ephemeral_key(
                         "base_url": "https://runtime.test/v1",
                         "model": "runtime-reasoner",
                         "api_key": secret,
-                        "params": {"thinking_effort": "high"},
+                        "params": {"thinking_effort": "xhigh"},
                         "limits": {"concurrency": 2, "retries": 0},
                     }
                 },
@@ -644,7 +626,7 @@ def test_web_runtime_api_profile_uses_ephemeral_key(
                 await asyncio.sleep(0.02)
             assert payload is not None
             assert payload["status"] == "completed"
-            assert payload["progress"]["total"] == 4
+            assert payload["progress"]["total"] == 1
             assert payload["profiles"][0]["model"] == "runtime-reasoner"
             assert secret not in json.dumps(payload)
             assert "api_key_env" not in json.dumps(payload)
@@ -659,7 +641,7 @@ def test_web_runtime_api_profile_uses_ephemeral_key(
         for request in WebFakeAsyncClient.requests
     )
     assert all(
-        request["json"]["reasoning_effort"] == "high" for request in WebFakeAsyncClient.requests
+        request["json"]["reasoning_effort"] == "xhigh" for request in WebFakeAsyncClient.requests
     )
     assert all("max_tokens" not in request["json"] for request in WebFakeAsyncClient.requests)
     for path in (tmp_path / "data").rglob("*"):

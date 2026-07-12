@@ -30,6 +30,7 @@ from backpack_bench import __version__
 from backpack_bench.canonical import content_hash
 from backpack_bench.evaluation import validate_placement_answer
 from backpack_bench.plugins import PluginRegistry
+from backpack_bench.prompt import render_visual_prompt
 from backpack_bench.providers.base import profile_hash, resolve_api_key
 from backpack_bench.reporting import build_run_report, serialize_report
 from backpack_bench.runner import (
@@ -263,12 +264,19 @@ def _scenario_summary(value: ResolvedScenario) -> dict[str, Any]:
     }
 
 
-def _scenario_detail(value: ResolvedScenario, registry: PluginRegistry) -> dict[str, Any]:
+def _scenario_detail(
+    suite_id: str,
+    value: ResolvedScenario,
+    registry: PluginRegistry,
+) -> dict[str, Any]:
     scenario = value.scenario
     instances = [
         {
             "item_id": item_id,
             "type_id": item.id,
+            "catalog_id": item.catalog_id,
+            "image_url": f"/api/suites/{suite_id}/items/{item.catalog_id}/image",
+            "card_url": f"/api/suites/{suite_id}/items/{item.catalog_id}/card",
             "display_name": item.display_name,
             "category": item.category,
             "category_label": CATEGORY_LABELS_ZH.get(item.category, item.category),
@@ -294,6 +302,17 @@ def _scenario_detail(value: ResolvedScenario, registry: PluginRegistry) -> dict[
         "valid_cells": [list(cell) for cell in sorted(scenario.board.valid_cells())],
         "instances": instances,
         "oracle": value.oracle.model_dump(mode="json", exclude_none=True),
+        "sheet_url": f"/api/suites/{suite_id}/scenarios/{scenario.id}/sheet",
+        "sheet_urls": {
+            "visual_shape": (
+                f"/api/suites/{suite_id}/scenarios/{scenario.id}/sheet?mode=visual_shape"
+            ),
+            "visual_full": f"/api/suites/{suite_id}/scenarios/{scenario.id}/sheet",
+        },
+        "visual_prompts": {
+            mode: render_visual_prompt(scenario, registry, mode)
+            for mode in ("visual_shape", "visual_full")
+        },
     }
 
 
@@ -365,6 +384,7 @@ def _config_summary(context: WebContext, config_id: str, plan: ResolvedPlan) -> 
         "jobs": len(plan.profiles) * len(plan.suite.scenarios) * plan.spec.trials,
         "trials": plan.spec.trials,
         "concurrency": plan.spec.concurrency,
+        "prompt_mode": plan.spec.prompt_mode,
         "key_ready": _key_ready(plan),
     }
 
@@ -585,6 +605,17 @@ def create_app(workspace: Path | None = None) -> FastAPI:
                 "title": suite.spec.title,
                 "version": suite.spec.version,
                 "suite_hash": suite.suite_hash,
+                "item_catalog": {
+                    "id": suite.catalog.id,
+                    "version": suite.catalog.version,
+                    "hash": suite.catalog_hash,
+                },
+                "visual_pack": {
+                    "id": suite.visual_pack.spec.id,
+                    "version": suite.visual_pack.spec.version,
+                    "status": suite.visual_pack.spec.status,
+                    "hash": suite.visual_pack.pack_hash,
+                },
                 "scenarios": [_scenario_summary(item) for item in suite.scenarios],
             }
             for suite in context.suites.values()
@@ -592,7 +623,47 @@ def create_app(workspace: Path | None = None) -> FastAPI:
 
     @app.get("/api/suites/{suite_id}/scenarios/{scenario_id}")
     async def scenario_detail(suite_id: str, scenario_id: str) -> dict[str, Any]:
-        return _scenario_detail(context.scenario(suite_id, scenario_id), context.registry)
+        return _scenario_detail(
+            suite_id,
+            context.scenario(suite_id, scenario_id),
+            context.registry,
+        )
+
+    @app.get("/api/suites/{suite_id}/items/{item_id}/image")
+    async def item_image(suite_id: str, item_id: str) -> FileResponse:
+        suite = context.suite(suite_id)
+        try:
+            _, path = suite.visual_pack.asset(item_id)
+        except KeyError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        return FileResponse(path)
+
+    @app.get("/api/suites/{suite_id}/items/{item_id}/card")
+    async def item_card(suite_id: str, item_id: str) -> FileResponse:
+        suite = context.suite(suite_id)
+        try:
+            _, path = suite.visual_pack.card(item_id)
+        except KeyError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        return FileResponse(path)
+
+    @app.get("/api/suites/{suite_id}/scenarios/{scenario_id}/sheet")
+    async def scenario_sheet(
+        suite_id: str,
+        scenario_id: str,
+        mode: Literal["visual_shape", "visual_full"] = Query("visual_full"),
+    ) -> FileResponse:
+        suite = context.suite(suite_id)
+        resolved = context.scenario(suite_id, scenario_id)
+        try:
+            path = suite.visual_pack.scenario_sheet(
+                scenario_id,
+                resolved.entry.scenario_hash,
+                mode,
+            )
+        except (KeyError, ValueError) as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        return FileResponse(path)
 
     @app.post("/api/evaluate")
     async def evaluate(request: ExperimentRequest) -> dict[str, Any]:

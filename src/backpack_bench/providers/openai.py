@@ -7,6 +7,7 @@ from typing import Any, cast
 from backpack_bench.providers.base import (
     ParsedCompletion,
     ParsedStreamEvent,
+    PromptImage,
     effective_auth_mode,
     effective_endpoint,
     text_content,
@@ -31,11 +32,22 @@ class OpenAIChatAdapter:
             headers["x-api-key"] = api_key
         return headers
 
-    def body(self, profile: ModelProfile, prompt: str) -> dict[str, Any]:
+    def body(
+        self,
+        profile: ModelProfile,
+        prompt: str,
+        image: PromptImage | None = None,
+    ) -> dict[str, Any]:
         params = profile.params
+        content: str | list[dict[str, Any]] = prompt
+        if image is not None:
+            content = [
+                {"type": "text", "text": prompt},
+                {"type": "image_url", "image_url": {"url": image.data_url(), "detail": "high"}},
+            ]
         body: dict[str, Any] = {
             "model": profile.model,
-            "messages": [{"role": "user", "content": prompt}],
+            "messages": [{"role": "user", "content": content}],
         }
         if params.temperature is not None:
             body["temperature"] = params.temperature

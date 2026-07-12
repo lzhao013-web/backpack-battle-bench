@@ -50,6 +50,24 @@
 
       <div class="scenario-strip" id="scenario-strip" aria-live="polite"></div>
 
+      <details class="visual-sheet-panel" open>
+        <summary>视觉题面（visual-card-v1）</summary>
+        <div class="visual-sheet-toolbar">
+          <p>多模态 Run 会把对应模式的题面图片与精简文字规则一起发送给模型。</p>
+          <label>预览模式
+            <select id="visual-sheet-mode">
+              <option value="visual_full">完整视觉</option>
+              <option value="visual_shape">仅视觉形状</option>
+            </select>
+          </label>
+        </div>
+        <img id="visual-sheet" alt="当前场景的视觉题面">
+        <details class="visual-prompt-panel" open>
+          <summary>与图片一起发送的文字提示词</summary>
+          <pre id="visual-prompt-text"></pre>
+        </details>
+      </details>
+
       <div class="lab-layout">
         <aside class="panel inventory-panel" aria-labelledby="inventory-heading">
           <div class="panel-heading">
@@ -199,6 +217,7 @@
                   <option value="low">low</option>
                   <option value="medium">medium</option>
                   <option value="high">high</option>
+                  <option value="xhigh">xhigh</option>
                   <option value="max">max</option>
                 </select>
               </label>

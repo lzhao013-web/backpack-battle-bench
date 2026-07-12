@@ -12,8 +12,9 @@ from pydantic import HttpUrl
 
 from backpack_bench.io import atomic_write_yaml
 from backpack_bench.plugins import PluginRegistry
+from backpack_bench.providers import adapter_for
 from backpack_bench.reporting import build_run_report, group_report_view
-from backpack_bench.runner import execute_plan, resolve_plan
+from backpack_bench.runner import build_jobs, execute_plan, resolve_plan
 from backpack_bench.schemas import (
     ModelProfile,
     ModelsConfig,
@@ -24,6 +25,23 @@ from backpack_bench.schemas import (
 from backpack_bench.storage import Storage
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_visual_run_builds_image_backed_jobs() -> None:
+    plan = resolve_plan(
+        ROOT / "configs" / "run.visual-smoke.yaml",
+        PluginRegistry(load_external=False),
+    )
+    jobs = build_jobs(plan, "visual-test")
+    assert plan.spec.prompt_mode == "visual_full"
+    assert len(jobs) == 6
+    job = jobs[0]
+    assert job.prompt_image is not None
+    assert Path(job.prompt_image.path).read_bytes().startswith(b"\x89PNG")
+    assert "占用格偏移" not in job.prompt
+    assert "每种物品的占用格、允许旋转、类别、基础攻击和效果均只在图片" in job.prompt
+    body = adapter_for(job.profile).body(job.profile, job.prompt, job.prompt_image)
+    assert isinstance(body["messages"][0]["content"], list)
 
 
 def json_text(value: Any) -> str:
@@ -228,7 +246,7 @@ class FastAsyncClient(InterruptibleAsyncClient):
         )
 
 
-def test_24_job_matrix_retry_and_resume(
+def test_6_job_matrix_retry_and_resume(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -282,8 +300,8 @@ def test_24_job_matrix_retry_and_resume(
     FakeAsyncClient.successful_responses = 0
     monkeypatch.setattr("backpack_bench.runner.httpx.AsyncClient", FakeAsyncClient)
     result = asyncio.run(execute_plan(plan))
-    assert result["jobs_total"] == 24
-    assert result["jobs_completed"] == 24
+    assert result["jobs_total"] == 6
+    assert result["jobs_completed"] == 6
     console_errors = capsys.readouterr().err
     assert "Attempt failed" in console_errors
     assert "HTTP 429" in console_errors
@@ -295,17 +313,15 @@ def test_24_job_matrix_retry_and_resume(
     report = build_run_report(storage, result["run_id"])
     assert len(report["profiles"]) == 2
     scores = sorted(profile["overall_score"] for profile in report["profiles"])
-    assert scores[0] == pytest.approx(91.6666666667)
+    assert scores[0] == pytest.approx(66.6666666667)
     assert scores[1] == 100
     assert any(profile["retry_rate"] > 0 for profile in report["profiles"])
-    assert sum(profile["truncation_rate"] for profile in report["profiles"]) == pytest.approx(
-        1 / 12
-    )
+    assert sum(profile["truncation_rate"] for profile in report["profiles"]) == pytest.approx(1 / 3)
     assert (
         sum(profile["error_counts"].get("output_truncated", 0) for profile in report["profiles"])
         == 1
     )
-    assert sum(profile["output_tokens"] for profile in report["profiles"]) > 24 * 20
+    assert sum(profile["output_tokens"] for profile in report["profiles"]) > 6 * 20
     assert all(
         len(scenario["trial_results"]) == 3
         for profile in report["profiles"]
@@ -330,7 +346,7 @@ def test_24_job_matrix_retry_and_resume(
     assert test_key not in json.dumps(failed_attempts)
     assert group_report_view(report, "difficulty")["entries"]
     attempts = storage.connection.execute("SELECT COUNT(*) AS n FROM attempts").fetchone()["n"]
-    assert attempts == 26
+    assert attempts == 8
     live_rows = storage.connection.execute(
         "SELECT COUNT(*) AS n FROM jobs WHERE live_output_tokens IS NOT NULL"
     ).fetchone()["n"]
@@ -340,7 +356,7 @@ def test_24_job_matrix_retry_and_resume(
     resumed = asyncio.run(execute_plan(plan, resume_run_id=result["run_id"]))
     assert resumed["jobs_executed"] == 0
     with sqlite3.connect(plan.database) as connection:
-        assert connection.execute("SELECT COUNT(*) FROM jobs").fetchone()[0] == 24
+        assert connection.execute("SELECT COUNT(*) FROM jobs").fetchone()[0] == 6
     artifact_text = "".join(
         path.read_text(encoding="utf-8", errors="ignore")
         for path in (tmp_path / "artifacts").rglob("*")
@@ -360,7 +376,7 @@ def test_24_job_matrix_retry_and_resume(
     assert "验证明细" in html_report
     assert "原始错误（Key 已脱敏）" in html_report
     assert "HTTP 429" in html_report
-    assert "mixed-3x3" in html_report
+    assert "packing-3x3" in html_report
 
 
 def test_interrupted_run_resumes_without_duplicate_records(
@@ -428,18 +444,18 @@ def test_interrupted_run_resumes_without_duplicate_records(
         completed_before_resume = connection.execute(
             "SELECT COUNT(*) FROM jobs WHERE status='completed'"
         ).fetchone()[0]
-        assert 0 < completed_before_resume < 24
+        assert 0 < completed_before_resume < 6
     assert (plan.reports / run_id / "report.json").is_file()
     assert (plan.reports / run_id / "report.html").is_file()
 
     monkeypatch.setattr("backpack_bench.runner.httpx.AsyncClient", FastAsyncClient)
     resumed = asyncio.run(execute_plan(plan, resume_run_id=run_id))
-    assert resumed["jobs_total"] == 24
-    assert resumed["jobs_completed"] == 24
-    assert resumed["jobs_executed"] == 24 - completed_before_resume
+    assert resumed["jobs_total"] == 6
+    assert resumed["jobs_completed"] == 6
+    assert resumed["jobs_executed"] == 6 - completed_before_resume
     with sqlite3.connect(plan.database) as connection:
-        assert connection.execute("SELECT COUNT(*) FROM jobs").fetchone()[0] == 24
-        assert connection.execute("SELECT COUNT(*) FROM attempts").fetchone()[0] == 24
+        assert connection.execute("SELECT COUNT(*) FROM jobs").fetchone()[0] == 6
+        assert connection.execute("SELECT COUNT(*) FROM attempts").fetchone()[0] == 6
         assert (
             connection.execute(
                 "SELECT COUNT(*) FROM ("

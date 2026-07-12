@@ -1,0 +1,10 @@
+schema_version: 1
+id: visual-smoke
+suite: ../suites/smoke-v1.yaml
+models: models.example.yaml
+trials: 3
+concurrency: 1
+prompt_mode: visual_full
+database: ../.bbbench/results.sqlite3
+artifacts: ../.bbbench/artifacts
+reports: ../.bbbench/reports

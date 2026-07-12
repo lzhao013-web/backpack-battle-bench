@@ -535,6 +535,13 @@ function renderScenarioStrip() {
   strip.append(hash);
 }
 
+function renderVisualScenarioInput() {
+  if (!state.detail) return;
+  const mode = $("#visual-sheet-mode").value;
+  $("#visual-sheet").src = state.detail.sheet_urls[mode];
+  $("#visual-prompt-text").textContent = state.detail.visual_prompts[mode];
+}
+
 function renderInventory() {
   const container = $("#inventory");
   container.replaceChildren();
@@ -547,6 +554,13 @@ function renderInventory() {
     button.className = "item-button";
     if (state.selectedItemId === instance.item_id) button.classList.add("is-selected");
     if (state.placements.has(instance.item_id)) button.classList.add("is-placed");
+    const image = document.createElement("img");
+    image.className = "item-image";
+    image.src = instance.image_url;
+    image.alt = "";
+    image.draggable = false;
+    const copy = document.createElement("span");
+    copy.className = "item-copy";
     const name = document.createElement("span");
     name.className = "item-name";
     name.textContent = `${instance.display_name} · ${instance.item_id}`;
@@ -558,7 +572,8 @@ function renderInventory() {
     const category = instance.category_label || CATEGORY_LABELS[instance.category]
       || instance.category;
     stat.textContent = [category, stats].filter(Boolean).join(" · ");
-    button.append(name, stat);
+    copy.append(name, stat);
+    button.append(image, copy);
     button.addEventListener("click", () => selectItem(instance.item_id));
     button.addEventListener("pointerdown", (event) => {
       armPointerDrag(instance.item_id, [0, 0], event);
@@ -815,6 +830,7 @@ async function loadScenario() {
     renderLayout();
     $("#prompt-text").textContent = state.detail.prompt;
     $("#prompt-meta").textContent = `prompt ${state.detail.prompt_hash} · scenario ${state.detail.scenario_hash}`;
+    renderVisualScenarioInput();
     await evaluateLayout();
   } catch (error) {
     $("#layout-message").className = "layout-message is-error";
@@ -1190,6 +1206,7 @@ function renderRunPreview() {
     : Number(preview.concurrency);
   const values = [
     ["题集", preview.suite_id],
+    ["题面", preview.prompt_mode === "text" ? "纯文字" : preview.prompt_mode],
     ["Jobs", String(browser ? preview.scenarios * preview.trials : preview.jobs)],
     ["模型配置", String(browser ? 1 : preview.profiles.length)],
     [browser ? "实际并发上限" : "全局并发", String(concurrencyCap)],
@@ -1263,7 +1280,8 @@ async function loadRunConfigs() {
     state.runConfigs.forEach((config) => {
       const option = document.createElement("option");
       option.value = config.id;
-      option.textContent = `${config.plan_id} · ${config.path}`;
+      const mode = config.prompt_mode === "text" ? "文字" : "视觉";
+      option.textContent = `${config.plan_id} · ${mode} · ${config.path}`;
       select.append(option);
     });
     state.runConfigId = state.runConfigs[0]?.id || null;
@@ -1775,7 +1793,10 @@ function bindEvents() {
   $("#refresh-runs").addEventListener("click", refreshRuns);
   $("#stop-run").addEventListener("click", stopRun);
   $("#resume-run").addEventListener("click", resumeRun);
-  $("#delete-run").addEventListener("click", deleteRun);
+$("#delete-run").addEventListener("click", deleteRun);
+$("#visual-sheet-mode").addEventListener("change", () => {
+  renderVisualScenarioInput();
+});
 }
 
 setupTabs();
