@@ -1,6 +1,8 @@
 import asyncio
 import json
 import sqlite3
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
@@ -24,6 +26,79 @@ from backpack_bench.storage import Storage
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def json_text(value: Any) -> str:
+    return json.dumps(value)
+
+
+def stream_response(value: dict[str, Any], anthropic: bool = False) -> httpx.Response:
+    events: list[dict[str, Any]] = []
+    if anthropic:
+        events.append(
+            {
+                "type": "message_start",
+                "message": {
+                    "id": value["id"],
+                    "usage": {"input_tokens": value.get("usage", {}).get("input_tokens", 0)},
+                },
+            }
+        )
+        for block in value.get("content", []):
+            if block.get("type") == "text":
+                events.append(
+                    {
+                        "type": "content_block_delta",
+                        "delta": {"type": "text_delta", "text": block["text"]},
+                    }
+                )
+            elif block.get("type") == "thinking":
+                events.append(
+                    {
+                        "type": "content_block_delta",
+                        "delta": {"type": "thinking_delta", "thinking": block["thinking"]},
+                    }
+                )
+        events.append(
+            {
+                "type": "message_delta",
+                "delta": {"stop_reason": value.get("stop_reason")},
+                "usage": {"output_tokens": value.get("usage", {}).get("output_tokens", 0)},
+            }
+        )
+        lines = [f"event: {event['type']}\ndata: {json.dumps(event)}\n" for event in events]
+    else:
+        choice = value["choices"][0]
+        message = choice["message"]
+        delta = {
+            key: item
+            for key, item in {
+                "content": message.get("content"),
+                "reasoning_content": message.get("reasoning_content"),
+            }.items()
+            if item is not None
+        }
+        events.extend(
+            [
+                {
+                    "id": value["id"],
+                    "choices": [{"delta": delta, "finish_reason": None}],
+                },
+                {
+                    "id": value["id"],
+                    "choices": [{"delta": {}, "finish_reason": choice.get("finish_reason")}],
+                },
+                {"id": value["id"], "choices": [], "usage": value.get("usage", {})},
+            ]
+        )
+        lines = [f"data: {json.dumps(event)}\n" for event in events]
+        lines.append("data: [DONE]\n")
+    return httpx.Response(
+        200,
+        content="\n".join(lines),
+        headers={"Content-Type": "text/event-stream"},
+        request=httpx.Request("POST", "https://mock.test/stream"),
+    )
+
+
 class FakeAsyncClient:
     prompt_answers: dict[str, str] = {}
     failure_statuses: list[int] = []
@@ -32,14 +107,25 @@ class FakeAsyncClient:
     def __init__(self, **_: object) -> None:
         pass
 
-    async def post(self, url: str, headers: dict[str, str], json: dict[str, Any]) -> httpx.Response:
+    @asynccontextmanager
+    async def stream(
+        self,
+        method: str,
+        url: str,
+        headers: dict[str, str],
+        json: dict[str, Any],
+    ) -> AsyncIterator[httpx.Response]:
+        assert method == "POST"
+        assert json["stream"] is True
         if FakeAsyncClient.failure_statuses:
             status = FakeAsyncClient.failure_statuses.pop(0)
-            return httpx.Response(
+            yield httpx.Response(
                 status,
-                json={"error": "retry", "echo": headers.get("Authorization")},
-                headers={"Retry-After": "0"},
+                content=json_text({"error": "retry", "echo": headers.get("Authorization")}),
+                headers={"Retry-After": "0", "Content-Type": "application/json"},
+                request=httpx.Request(method, url),
             )
+            return
         prompt = json["messages"][0]["content"]
         answer = FakeAsyncClient.prompt_answers[prompt]
         FakeAsyncClient.successful_responses += 1
@@ -57,7 +143,8 @@ class FakeAsyncClient:
                     "choices": [{"finish_reason": "length", "message": {"content": None}}],
                     "usage": {"prompt_tokens": 100, "completion_tokens": 2048},
                 }
-            return httpx.Response(200, json=truncated)
+            yield stream_response(truncated, anthropic="anthropic-version" in headers)
+            return
         if "anthropic-version" in headers:
             value: dict[str, Any] = {
                 "id": "anthropic-mock",
@@ -76,7 +163,7 @@ class FakeAsyncClient:
                     "completion_tokens_details": {"reasoning_tokens": 5},
                 },
             }
-        return httpx.Response(200, json=value)
+        yield stream_response(value, anthropic="anthropic-version" in headers)
 
     async def aclose(self) -> None:
         pass
@@ -89,13 +176,19 @@ class InterruptibleAsyncClient:
     def __init__(self, **_: object) -> None:
         pass
 
-    async def post(self, url: str, headers: dict[str, str], json: dict[str, Any]) -> httpx.Response:
+    @asynccontextmanager
+    async def stream(
+        self,
+        method: str,
+        url: str,
+        headers: dict[str, str],
+        json: dict[str, Any],
+    ) -> AsyncIterator[httpx.Response]:
         InterruptibleAsyncClient.calls += 1
         await asyncio.sleep(0.05)
         prompt = json["messages"][0]["content"]
-        return httpx.Response(
-            200,
-            json={
+        yield stream_response(
+            {
                 "id": "resume-mock",
                 "choices": [
                     {
@@ -104,7 +197,7 @@ class InterruptibleAsyncClient:
                     }
                 ],
                 "usage": {"prompt_tokens": 10, "completion_tokens": 10},
-            },
+            }
         )
 
     async def aclose(self) -> None:
@@ -112,11 +205,17 @@ class InterruptibleAsyncClient:
 
 
 class FastAsyncClient(InterruptibleAsyncClient):
-    async def post(self, url: str, headers: dict[str, str], json: dict[str, Any]) -> httpx.Response:
+    @asynccontextmanager
+    async def stream(
+        self,
+        method: str,
+        url: str,
+        headers: dict[str, str],
+        json: dict[str, Any],
+    ) -> AsyncIterator[httpx.Response]:
         prompt = json["messages"][0]["content"]
-        return httpx.Response(
-            200,
-            json={
+        yield stream_response(
+            {
                 "id": "resume-mock",
                 "choices": [
                     {
@@ -125,7 +224,7 @@ class FastAsyncClient(InterruptibleAsyncClient):
                     }
                 ],
                 "usage": {"prompt_tokens": 10, "completion_tokens": 10},
-            },
+            }
         )
 
 
@@ -232,6 +331,10 @@ def test_24_job_matrix_retry_and_resume(
     assert group_report_view(report, "difficulty")["entries"]
     attempts = storage.connection.execute("SELECT COUNT(*) AS n FROM attempts").fetchone()["n"]
     assert attempts == 26
+    live_rows = storage.connection.execute(
+        "SELECT COUNT(*) AS n FROM jobs WHERE live_output_tokens IS NOT NULL"
+    ).fetchone()["n"]
+    assert live_rows == 0
     storage.close()
 
     resumed = asyncio.run(execute_plan(plan, resume_run_id=result["run_id"]))
@@ -246,6 +349,7 @@ def test_24_job_matrix_retry_and_resume(
     assert "api_key" not in artifact_text.lower()
     assert test_key not in artifact_text
     assert test_key.encode() not in plan.database.read_bytes()
+    assert list((tmp_path / "artifacts").rglob("response.txt"))
     assert (plan.reports / result["run_id"] / "report.json").is_file()
     assert (plan.reports / result["run_id"] / "report.csv").is_file()
     html_path = plan.reports / result["run_id"] / "report.html"

@@ -6,6 +6,7 @@ from typing import Any, cast
 
 from backpack_bench.providers.base import (
     ParsedCompletion,
+    ParsedStreamEvent,
     effective_auth_mode,
     effective_endpoint,
     text_content,
@@ -18,7 +19,11 @@ class OpenAIChatAdapter:
         return effective_endpoint(profile)
 
     def headers(self, profile: ModelProfile, api_key: str | None) -> dict[str, str]:
-        headers = {"Content-Type": "application/json", **profile.extra_headers}
+        headers = {
+            "Content-Type": "application/json",
+            "Accept": "text/event-stream",
+            **profile.extra_headers,
+        }
         auth_mode = effective_auth_mode(profile)
         if api_key and auth_mode in {"bearer", "both"}:
             headers["Authorization"] = f"Bearer {api_key}"
@@ -43,6 +48,12 @@ class OpenAIChatAdapter:
         if params.json_mode:
             body["response_format"] = {"type": "json_object"}
         body.update(params.extra_body)
+        body["stream"] = True
+        stream_options = body.get("stream_options")
+        body["stream_options"] = {
+            "include_usage": True,
+            **(stream_options if isinstance(stream_options, dict) else {}),
+        }
         return body
 
     def parse(self, value: Any) -> ParsedCompletion:
@@ -71,6 +82,51 @@ class OpenAIChatAdapter:
         return ParsedCompletion(
             content=content,
             reasoning=reasoning,
+            finish_reason=finish_reason,
+            usage=usage,
+            response_id=value.get("id") if isinstance(value.get("id"), str) else None,
+        )
+
+    def parse_stream_event(self, value: Any) -> ParsedStreamEvent:
+        if not isinstance(value, dict):
+            raise ValueError("OpenAI stream event must be an object")
+        error = value.get("error")
+        if error is not None:
+            raise ValueError(f"OpenAI stream returned an error: {error}")
+        usage_value = value.get("usage")
+        usage = cast(dict[str, Any], usage_value) if isinstance(usage_value, dict) else {}
+        choices = value.get("choices", [])
+        if not isinstance(choices, list):
+            raise ValueError("OpenAI stream event choices must be an array")
+        if not choices:
+            return ParsedStreamEvent(
+                usage=usage,
+                response_id=value.get("id") if isinstance(value.get("id"), str) else None,
+            )
+        choice = choices[0]
+        if not isinstance(choice, dict):
+            raise ValueError("OpenAI stream event choices[0] must be an object")
+        delta = choice.get("delta")
+        if not isinstance(delta, dict):
+            delta = {}
+        content_value = delta.get("content")
+        if isinstance(content_value, str):
+            content = content_value
+        elif isinstance(content_value, list):
+            try:
+                content = text_content(content_value)
+            except ValueError:
+                content = ""
+        else:
+            content = ""
+        reasoning_value = delta.get("reasoning_content", delta.get("reasoning"))
+        reasoning = reasoning_value if isinstance(reasoning_value, str) else ""
+        finish_reason = (
+            choice.get("finish_reason") if isinstance(choice.get("finish_reason"), str) else None
+        )
+        return ParsedStreamEvent(
+            content_delta=content,
+            reasoning_delta=reasoning,
             finish_reason=finish_reason,
             usage=usage,
             response_id=value.get("id") if isinstance(value.get("id"), str) else None,

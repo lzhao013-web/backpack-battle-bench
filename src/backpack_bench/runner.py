@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import asyncio
 import json
+import math
+import re
 import time
 import uuid
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
@@ -137,6 +140,71 @@ class RateLimiter:
             self.next_allowed = max(now, self.next_allowed) + self.interval
 
 
+TokenProgressCallback = Callable[[int, bool, bool], Awaitable[None]]
+_TOKEN_PART = re.compile(r"[\u3400-\u9fff]|[A-Za-z0-9_]+|[^\sA-Za-z0-9_\u3400-\u9fff]")
+
+
+def _estimate_output_tokens(value: str) -> int:
+    """Tokenizer-independent estimate used only until the provider reports usage."""
+    total = 0
+    for match in _TOKEN_PART.finditer(value):
+        part = match.group(0)
+        is_word = part[0].isascii() and (part[0].isalnum() or part[0] == "_")
+        total += math.ceil(len(part) / 4) if is_word else 1
+    return total
+
+
+def _merge_usage(target: dict[str, Any], update: dict[str, Any]) -> None:
+    for key, value in update.items():
+        current = target.get(key)
+        if isinstance(current, dict) and isinstance(value, dict):
+            _merge_usage(current, value)
+        else:
+            target[key] = value
+
+
+def _reported_output_tokens(usage: dict[str, Any]) -> int | None:
+    value = usage.get("completion_tokens", usage.get("output_tokens"))
+    if value is None:
+        return None
+    try:
+        return max(0, int(value))
+    except (TypeError, ValueError):
+        return None
+
+
+class LiveTokenReporter:
+    """Throttle streamed token snapshots before writing them to SQLite."""
+
+    def __init__(self, storage: Storage, writer: DbWriter, job_id: str) -> None:
+        self.storage = storage
+        self.writer = writer
+        self.job_id = job_id
+        self.last_write = 0.0
+        self.last_value: tuple[int, bool] | None = None
+
+    async def report(self, output_tokens: int, estimated: bool, force: bool = False) -> None:
+        value = (max(0, output_tokens), estimated)
+        now = time.monotonic()
+        if not force:
+            if value == self.last_value:
+                return
+            if (
+                self.last_value is not None
+                and self.last_value[0] > 0
+                and now - self.last_write < 0.15
+            ):
+                return
+        await self.writer.submit(
+            self.storage.set_job_live_tokens,
+            self.job_id,
+            value[0],
+            value[1],
+        )
+        self.last_value = value
+        self.last_write = now
+
+
 def resolve_plan(path: Path, registry: PluginRegistry) -> ResolvedPlan:
     path = path.resolve()
     spec = load_yaml(path, RunPlan)
@@ -245,93 +313,268 @@ async def _call_once(
     api_key: str | None,
     limiter: RateLimiter,
     registry: PluginRegistry,
+    token_progress: TokenProgressCallback,
 ) -> AttemptOutcome:
     adapter = adapter_for(job.profile)
     endpoint = adapter.endpoint(job.profile)
     headers = adapter.headers(job.profile, api_key)
     body = adapter.body(job.profile, job.scenario.prompt)
     await limiter.wait()
+    await token_progress(0, True, True)
     started = time.perf_counter()
+    http_status: int | None = None
+    retry_after: float | None = None
+    raw_lines: list[str] = []
     try:
-        response = await client.post(endpoint, headers=headers, json=body)
+        async with client.stream("POST", endpoint, headers=headers, json=body) as response:
+            http_status = response.status_code
+            retry_after = _retry_after(response.headers)
+            if not 200 <= response.status_code < 300:
+                await response.aread()
+                response_text = response.text
+                try:
+                    response_json: Any | None = response.json()
+                except json.JSONDecodeError:
+                    response_json = None
+                return AttemptOutcome(
+                    retryable=response.status_code in {408, 429} or response.status_code >= 500,
+                    error_type="api_http",
+                    error_message=f"HTTP {response.status_code}: {response_text[:2000]}",
+                    http_status=response.status_code,
+                    response_json=response_json,
+                    response_text=response_text,
+                    completion=None,
+                    validation=None,
+                    latency_ms=(time.perf_counter() - started) * 1000,
+                    retry_after=retry_after,
+                )
+
+            content_type = response.headers.get("content-type", "").lower()
+            if "application/json" in content_type or "+json" in content_type:
+                await response.aread()
+                response_text = response.text
+                try:
+                    response_json = response.json()
+                except json.JSONDecodeError:
+                    return AttemptOutcome(
+                        retryable=False,
+                        error_type="api_schema",
+                        error_message="successful streaming response was not SSE or JSON",
+                        http_status=response.status_code,
+                        response_json=None,
+                        response_text=response_text,
+                        completion=None,
+                        validation=None,
+                        latency_ms=(time.perf_counter() - started) * 1000,
+                        retry_after=None,
+                    )
+                try:
+                    completion = adapter.parse(response_json)
+                except ValueError as error:
+                    return AttemptOutcome(
+                        retryable=False,
+                        error_type="api_schema",
+                        error_message=str(error),
+                        http_status=response.status_code,
+                        response_json=response_json,
+                        response_text=response_text,
+                        completion=None,
+                        validation=None,
+                        latency_ms=(time.perf_counter() - started) * 1000,
+                        retry_after=None,
+                    )
+                reported = _reported_output_tokens(completion.usage)
+                estimated = _estimate_output_tokens(
+                    (completion.reasoning or "") + completion.content
+                )
+                token_count_is_estimated = reported is None
+                if reported is None:
+                    completion.usage["output_tokens"] = estimated
+                    completion.usage["output_tokens_estimated"] = True
+                    reported = estimated
+                await token_progress(reported, token_count_is_estimated, True)
+                validation = parse_and_score_output(
+                    job.scenario.scenario,
+                    completion.content,
+                    registry,
+                    finish_reason=completion.finish_reason,
+                )
+                return AttemptOutcome(
+                    retryable=False,
+                    error_type=None,
+                    error_message=None,
+                    http_status=response.status_code,
+                    response_json=response_json,
+                    response_text=response_text,
+                    completion=completion,
+                    validation=validation,
+                    latency_ms=(time.perf_counter() - started) * 1000,
+                    retry_after=None,
+                )
+
+            content_parts: list[str] = []
+            reasoning_parts: list[str] = []
+            usage: dict[str, Any] = {}
+            finish_reason: str | None = None
+            response_id: str | None = None
+            direct_completion: ParsedCompletion | None = None
+            parsed_events = 0
+            async for line in response.aiter_lines():
+                raw_lines.append(line)
+                data = line.strip()
+                if not data or data.startswith((":", "event:", "id:", "retry:")):
+                    continue
+                if data.startswith("data:"):
+                    data = data[5:].strip()
+                if data == "[DONE]":
+                    break
+                try:
+                    event = json.loads(data)
+                except json.JSONDecodeError as error:
+                    return AttemptOutcome(
+                        retryable=False,
+                        error_type="api_schema",
+                        error_message=f"invalid JSON in stream event: {error}",
+                        http_status=response.status_code,
+                        response_json=None,
+                        response_text="\n".join(raw_lines),
+                        completion=None,
+                        validation=None,
+                        latency_ms=(time.perf_counter() - started) * 1000,
+                        retry_after=None,
+                    )
+                parsed_events += 1
+                try:
+                    direct_completion = adapter.parse(event)
+                except ValueError:
+                    try:
+                        parsed = adapter.parse_stream_event(event)
+                    except ValueError as error:
+                        return AttemptOutcome(
+                            retryable=False,
+                            error_type="api_schema",
+                            error_message=str(error),
+                            http_status=response.status_code,
+                            response_json=None,
+                            response_text="\n".join(raw_lines),
+                            completion=None,
+                            validation=None,
+                            latency_ms=(time.perf_counter() - started) * 1000,
+                            retry_after=None,
+                        )
+                    content_parts.append(parsed.content_delta)
+                    reasoning_parts.append(parsed.reasoning_delta)
+                    if parsed.finish_reason is not None:
+                        finish_reason = parsed.finish_reason
+                    if parsed.response_id is not None:
+                        response_id = parsed.response_id
+                    _merge_usage(usage, parsed.usage)
+                    estimated_count = _estimate_output_tokens(
+                        "".join(reasoning_parts) + "".join(content_parts)
+                    )
+                    event_reported = _reported_output_tokens(parsed.usage)
+                    await token_progress(
+                        event_reported if event_reported is not None else estimated_count,
+                        event_reported is None,
+                        False,
+                    )
+                else:
+                    reported = _reported_output_tokens(direct_completion.usage)
+                    estimated_count = _estimate_output_tokens(
+                        (direct_completion.reasoning or "") + direct_completion.content
+                    )
+                    await token_progress(
+                        reported if reported is not None else estimated_count,
+                        reported is None,
+                        False,
+                    )
+
+            if direct_completion is not None:
+                completion = direct_completion
+                _merge_usage(completion.usage, usage)
+            else:
+                content = "".join(content_parts)
+                reasoning = "".join(reasoning_parts)
+                if parsed_events == 0:
+                    return AttemptOutcome(
+                        retryable=False,
+                        error_type="api_schema",
+                        error_message="successful response contained no stream events",
+                        http_status=response.status_code,
+                        response_json=None,
+                        response_text="\n".join(raw_lines),
+                        completion=None,
+                        validation=None,
+                        latency_ms=(time.perf_counter() - started) * 1000,
+                        retry_after=None,
+                    )
+                if not content and finish_reason != "length":
+                    return AttemptOutcome(
+                        retryable=False,
+                        error_type="api_schema",
+                        error_message="stream produced no final text content",
+                        http_status=response.status_code,
+                        response_json=None,
+                        response_text="\n".join(raw_lines),
+                        completion=None,
+                        validation=None,
+                        latency_ms=(time.perf_counter() - started) * 1000,
+                        retry_after=None,
+                    )
+                estimated_count = _estimate_output_tokens(reasoning + content)
+                reported = _reported_output_tokens(usage)
+                if reported is None or (reported == 0 and estimated_count > 0):
+                    usage["output_tokens"] = estimated_count
+                    usage["output_tokens_estimated"] = True
+                    reported = estimated_count
+                completion = ParsedCompletion(
+                    content=content,
+                    reasoning=reasoning or None,
+                    finish_reason=finish_reason,
+                    usage=usage,
+                    response_id=response_id,
+                )
+            final_reported = _reported_output_tokens(completion.usage)
+            final_estimated = bool(completion.usage.get("output_tokens_estimated"))
+            if final_reported is None:
+                final_reported = _estimate_output_tokens(
+                    (completion.reasoning or "") + completion.content
+                )
+                completion.usage["output_tokens"] = final_reported
+                completion.usage["output_tokens_estimated"] = True
+                final_estimated = True
+            await token_progress(final_reported, final_estimated, True)
+            validation = parse_and_score_output(
+                job.scenario.scenario,
+                completion.content,
+                registry,
+                finish_reason=completion.finish_reason,
+            )
+            return AttemptOutcome(
+                retryable=False,
+                error_type=None,
+                error_message=None,
+                http_status=response.status_code,
+                response_json=None,
+                response_text="\n".join(raw_lines),
+                completion=completion,
+                validation=validation,
+                latency_ms=(time.perf_counter() - started) * 1000,
+                retry_after=None,
+            )
     except httpx.HTTPError as error:
         return AttemptOutcome(
             retryable=True,
             error_type="api_transport",
             error_message=str(error),
-            http_status=None,
+            http_status=http_status,
             response_json=None,
-            response_text=None,
+            response_text="\n".join(raw_lines) or None,
             completion=None,
             validation=None,
             latency_ms=(time.perf_counter() - started) * 1000,
-            retry_after=None,
+            retry_after=retry_after,
         )
-    latency_ms = (time.perf_counter() - started) * 1000
-    response_text = response.text
-    try:
-        response_json = response.json()
-    except json.JSONDecodeError:
-        response_json = None
-    if not 200 <= response.status_code < 300:
-        return AttemptOutcome(
-            retryable=response.status_code in {408, 429} or response.status_code >= 500,
-            error_type="api_http",
-            error_message=f"HTTP {response.status_code}: {response_text[:2000]}",
-            http_status=response.status_code,
-            response_json=response_json,
-            response_text=response_text,
-            completion=None,
-            validation=None,
-            latency_ms=latency_ms,
-            retry_after=_retry_after(response.headers),
-        )
-    if response_json is None:
-        return AttemptOutcome(
-            retryable=False,
-            error_type="api_schema",
-            error_message="successful response was not JSON",
-            http_status=response.status_code,
-            response_json=None,
-            response_text=response_text,
-            completion=None,
-            validation=None,
-            latency_ms=latency_ms,
-            retry_after=None,
-        )
-    try:
-        completion = adapter.parse(response_json)
-    except ValueError as error:
-        return AttemptOutcome(
-            retryable=False,
-            error_type="api_schema",
-            error_message=str(error),
-            http_status=response.status_code,
-            response_json=response_json,
-            response_text=response_text,
-            completion=None,
-            validation=None,
-            latency_ms=latency_ms,
-            retry_after=None,
-        )
-    validation = parse_and_score_output(
-        job.scenario.scenario,
-        completion.content,
-        registry,
-        finish_reason=completion.finish_reason,
-    )
-    return AttemptOutcome(
-        retryable=False,
-        error_type=None,
-        error_message=None,
-        http_status=response.status_code,
-        response_json=response_json,
-        response_text=response_text,
-        completion=completion,
-        validation=validation,
-        latency_ms=latency_ms,
-        retry_after=None,
-    )
 
 
 def _usage_tokens(usage: dict[str, Any]) -> tuple[int, int, int, int]:
@@ -460,13 +703,21 @@ async def _execute_job(
 ) -> None:
     async with global_semaphore, profile_semaphore:
         await writer.submit(storage.set_job_status, job.job_id, "running")
+        token_reporter = LiveTokenReporter(storage, writer, job.job_id)
         first_attempt = _next_attempt_no(storage, plan, job)
         final_outcome: AttemptOutcome | None = None
         final_artifact_dir: Path | None = None
         for offset in range(job.profile.limits.retries + 1):
             attempt_no = first_attempt + offset
             started_at = utc_now()
-            outcome = await _call_once(job, client, api_key, limiter, plan.registry)
+            outcome = await _call_once(
+                job,
+                client,
+                api_key,
+                limiter,
+                plan.registry,
+                token_reporter.report,
+            )
             completed_at = utc_now()
             error_type, error_message = _attempt_failure(outcome)
             _print_attempt_failure(job, attempt_no, outcome, api_key)

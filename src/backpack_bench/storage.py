@@ -9,7 +9,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 class Storage:
@@ -67,6 +67,8 @@ class Storage:
                 trial INTEGER NOT NULL,
                 weight REAL NOT NULL,
                 status TEXT NOT NULL,
+                live_output_tokens INTEGER,
+                live_tokens_estimated INTEGER,
                 UNIQUE(run_id, profile_hash, scenario_hash, trial)
             );
             CREATE TABLE IF NOT EXISTS attempts (
@@ -106,6 +108,19 @@ class Storage:
         if current is None:
             self.connection.execute(
                 "INSERT INTO schema_meta(key, value) VALUES('schema_version', ?)",
+                (str(SCHEMA_VERSION),),
+            )
+        elif int(current["value"]) == 1:
+            columns = {
+                str(row["name"])
+                for row in self.connection.execute("PRAGMA table_info(jobs)").fetchall()
+            }
+            if "live_output_tokens" not in columns:
+                self.connection.execute("ALTER TABLE jobs ADD COLUMN live_output_tokens INTEGER")
+            if "live_tokens_estimated" not in columns:
+                self.connection.execute("ALTER TABLE jobs ADD COLUMN live_tokens_estimated INTEGER")
+            self.connection.execute(
+                "UPDATE schema_meta SET value=? WHERE key='schema_version'",
                 (str(SCHEMA_VERSION),),
             )
         elif int(current["value"]) != SCHEMA_VERSION:
@@ -251,7 +266,12 @@ class Storage:
 
     def reset_interrupted(self, run_id: str) -> None:
         self.connection.execute(
-            "UPDATE jobs SET status='pending' WHERE run_id=? AND status='running'", (run_id,)
+            """
+            UPDATE jobs
+            SET status='pending', live_output_tokens=NULL, live_tokens_estimated=NULL
+            WHERE run_id=? AND status='running'
+            """,
+            (run_id,),
         )
         self.connection.execute(
             "UPDATE runs SET status='running', completed_at=NULL WHERE run_id=?", (run_id,)
@@ -261,12 +281,38 @@ class Storage:
     def reset_running_jobs(self, run_id: str) -> None:
         """Return in-flight jobs to pending after a cooperative interruption."""
         self.connection.execute(
-            "UPDATE jobs SET status='pending' WHERE run_id=? AND status='running'", (run_id,)
+            """
+            UPDATE jobs
+            SET status='pending', live_output_tokens=NULL, live_tokens_estimated=NULL
+            WHERE run_id=? AND status='running'
+            """,
+            (run_id,),
         )
         self.connection.commit()
 
     def set_job_status(self, job_id: str, status: str) -> None:
-        self.connection.execute("UPDATE jobs SET status=? WHERE job_id=?", (status, job_id))
+        if status == "running":
+            self.connection.execute(
+                """
+                UPDATE jobs
+                SET status=?, live_output_tokens=0, live_tokens_estimated=1
+                WHERE job_id=?
+                """,
+                (status, job_id),
+            )
+        else:
+            self.connection.execute("UPDATE jobs SET status=? WHERE job_id=?", (status, job_id))
+        self.connection.commit()
+
+    def set_job_live_tokens(self, job_id: str, output_tokens: int, estimated: bool) -> None:
+        self.connection.execute(
+            """
+            UPDATE jobs
+            SET live_output_tokens=?, live_tokens_estimated=?
+            WHERE job_id=? AND status='running'
+            """,
+            (max(0, output_tokens), int(estimated), job_id),
+        )
         self.connection.commit()
 
     def completed_job_ids(self, run_id: str) -> set[str]:
@@ -324,7 +370,27 @@ class Storage:
             },
         )
         self.connection.execute(
-            "UPDATE jobs SET status='completed' WHERE job_id=?", (value["job_id"],)
+            """
+            UPDATE jobs
+            SET status='completed', live_output_tokens=NULL, live_tokens_estimated=NULL
+            WHERE job_id=?
+            """,
+            (value["job_id"],),
+        )
+        self.connection.commit()
+
+    def delete_run(self, run_id: str) -> None:
+        cursor = self.connection.execute("DELETE FROM runs WHERE run_id=?", (run_id,))
+        if cursor.rowcount != 1:
+            self.connection.rollback()
+            raise ValueError(f"run {run_id} does not exist")
+        self.connection.execute(
+            "DELETE FROM profiles WHERE NOT EXISTS "
+            "(SELECT 1 FROM jobs WHERE jobs.profile_hash=profiles.profile_hash)"
+        )
+        self.connection.execute(
+            "DELETE FROM scenarios WHERE NOT EXISTS "
+            "(SELECT 1 FROM jobs WHERE jobs.scenario_hash=scenarios.scenario_hash)"
         )
         self.connection.commit()
 
@@ -362,6 +428,7 @@ class Storage:
         rows = self.connection.execute(
             """
             SELECT j.job_id, j.trial, j.status,
+                   j.live_output_tokens, j.live_tokens_estimated,
                    p.profile_id, p.display_name, p.model,
                    s.scenario_id, s.title,
                    r.job_id AS result_job_id, r.valid, r.error_type, r.usage_json,

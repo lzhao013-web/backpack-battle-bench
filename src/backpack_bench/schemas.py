@@ -265,7 +265,7 @@ class RequestParams(StrictModel):
 
     @model_validator(mode="after")
     def validate_extra_body(self) -> RequestParams:
-        reserved = {"model", "messages"} & self.extra_body.keys()
+        reserved = {"model", "messages", "stream"} & self.extra_body.keys()
         if reserved:
             raise ValueError(f"extra_body cannot override benchmark fields: {sorted(reserved)}")
         forbidden = credential_paths(self.extra_body)

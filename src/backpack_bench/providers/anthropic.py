@@ -4,7 +4,12 @@ from __future__ import annotations
 
 from typing import Any, cast
 
-from backpack_bench.providers.base import ParsedCompletion, effective_auth_mode, effective_endpoint
+from backpack_bench.providers.base import (
+    ParsedCompletion,
+    ParsedStreamEvent,
+    effective_auth_mode,
+    effective_endpoint,
+)
 from backpack_bench.schemas import ModelProfile
 
 
@@ -15,6 +20,7 @@ class AnthropicMessagesAdapter:
     def headers(self, profile: ModelProfile, api_key: str | None) -> dict[str, str]:
         headers = {
             "Content-Type": "application/json",
+            "Accept": "text/event-stream",
             "anthropic-version": "2023-06-01",
             **profile.extra_headers,
         }
@@ -53,6 +59,7 @@ class AnthropicMessagesAdapter:
                 body[key] = {**body[key], **value}
             else:
                 body[key] = value
+        body["stream"] = True
         return body
 
     def parse(self, value: Any) -> ParsedCompletion:
@@ -85,3 +92,50 @@ class AnthropicMessagesAdapter:
             usage=usage,
             response_id=value.get("id") if isinstance(value.get("id"), str) else None,
         )
+
+    def parse_stream_event(self, value: Any) -> ParsedStreamEvent:
+        if not isinstance(value, dict):
+            raise ValueError("Anthropic stream event must be an object")
+        event_type = value.get("type")
+        if event_type == "error":
+            raise ValueError(f"Anthropic stream returned an error: {value.get('error')}")
+        if event_type == "message_start":
+            message = value.get("message")
+            if not isinstance(message, dict):
+                raise ValueError("Anthropic message_start has no message object")
+            usage_value = message.get("usage")
+            usage = cast(dict[str, Any], usage_value) if isinstance(usage_value, dict) else {}
+            return ParsedStreamEvent(
+                usage=usage,
+                response_id=message.get("id") if isinstance(message.get("id"), str) else None,
+            )
+        if event_type == "content_block_start":
+            block = value.get("content_block")
+            if not isinstance(block, dict):
+                return ParsedStreamEvent()
+            if block.get("type") == "text" and isinstance(block.get("text"), str):
+                return ParsedStreamEvent(content_delta=block["text"])
+            if block.get("type") == "thinking" and isinstance(block.get("thinking"), str):
+                return ParsedStreamEvent(reasoning_delta=block["thinking"])
+            return ParsedStreamEvent()
+        if event_type == "content_block_delta":
+            delta = value.get("delta")
+            if not isinstance(delta, dict):
+                return ParsedStreamEvent()
+            if delta.get("type") == "text_delta" and isinstance(delta.get("text"), str):
+                return ParsedStreamEvent(content_delta=delta["text"])
+            if delta.get("type") == "thinking_delta" and isinstance(delta.get("thinking"), str):
+                return ParsedStreamEvent(reasoning_delta=delta["thinking"])
+            return ParsedStreamEvent()
+        if event_type == "message_delta":
+            delta = value.get("delta")
+            raw_stop_reason = (
+                delta.get("stop_reason")
+                if isinstance(delta, dict) and isinstance(delta.get("stop_reason"), str)
+                else None
+            )
+            finish_reason = "length" if raw_stop_reason == "max_tokens" else raw_stop_reason
+            usage_value = value.get("usage")
+            usage = cast(dict[str, Any], usage_value) if isinstance(usage_value, dict) else {}
+            return ParsedStreamEvent(finish_reason=finish_reason, usage=usage)
+        return ParsedStreamEvent()

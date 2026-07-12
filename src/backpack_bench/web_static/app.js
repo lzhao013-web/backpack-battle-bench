@@ -1446,7 +1446,7 @@ function renderRunJobs(jobs) {
     const tokens = document.createElement("td");
     tokens.textContent = job.output_tokens == null
       ? "—"
-      : Number(job.output_tokens).toLocaleString("zh-CN");
+      : `${job.output_tokens_estimated ? "≈" : ""}${Number(job.output_tokens).toLocaleString("zh-CN")}`;
     row.append(status, model, scenario, trial, tokens);
     tbody.append(row);
   });
@@ -1480,11 +1480,14 @@ function renderRunProgress(payload) {
     (total, job) => total + Number(job.output_tokens || 0),
     0,
   );
+  const hasEstimatedTokens = (payload.jobs || []).some(
+    (job) => job.output_tokens != null && job.output_tokens_estimated,
+  );
   [
     ["尝试次数", progress.attempts],
     ["合法结果", progress.valid],
     ["运行中", progress.running],
-    ["输出 Token", outputTokens.toLocaleString("zh-CN")],
+    ["输出 Token", `${hasEstimatedTokens ? "≈" : ""}${outputTokens.toLocaleString("zh-CN")}`],
   ].forEach(([label, value]) => {
     const item = document.createElement("div");
     item.className = "metric";
@@ -1505,6 +1508,7 @@ function renderRunProgress(payload) {
   stopButton.hidden = !canStop;
   stopButton.disabled = payload.status === "stopping";
   stopButton.textContent = payload.status === "stopping" ? "中断中…" : "中断";
+  $("#delete-run").hidden = canStop;
   renderRunJobs(payload.jobs || []);
   updateRunListRow(payload);
   $("#start-run").disabled = runIsActive(payload.status) || !runSourceReady();
@@ -1638,6 +1642,39 @@ async function stopRun() {
   }
 }
 
+async function deleteRun() {
+  if (!state.runConfigId || !state.selectedRunId) return;
+  const runId = state.selectedRunId;
+  if (!window.confirm(
+    `确定永久删除 Run ${runId}？SQLite 记录、请求产物和报告都会被删除，且无法恢复。`,
+  )) return;
+  const button = $("#delete-run");
+  button.disabled = true;
+  setRunNotice(`正在删除 Run ${runId}…`);
+  try {
+    const payload = await api(
+      `/api/run-configs/${encodeURIComponent(state.runConfigId)}/runs/${encodeURIComponent(runId)}`,
+      { method: "DELETE" },
+    );
+    stopPolling();
+    stopRunStream();
+    state.selectedRunId = null;
+    $("#run-detail").hidden = true;
+    $("#run-detail-empty").hidden = false;
+    $("#selected-run-id").textContent = "选择一个 Run";
+    const cleanupNote = payload.cleanup_errors?.length
+      ? `；有 ${payload.cleanup_errors.length} 个临时目录清理失败`
+      : "";
+    setRunNotice(`Run ${runId} 已删除${cleanupNote}`, Boolean(payload.cleanup_errors?.length));
+    await refreshRuns();
+    $("#start-run").disabled = !runSourceReady();
+  } catch (error) {
+    setRunNotice(error.message, true);
+  } finally {
+    button.disabled = false;
+  }
+}
+
 function bindEvents() {
   window.addEventListener("beforeunload", () => {
     flushApiHistorySave();
@@ -1728,6 +1765,7 @@ function bindEvents() {
   $("#refresh-runs").addEventListener("click", refreshRuns);
   $("#stop-run").addEventListener("click", stopRun);
   $("#resume-run").addEventListener("click", resumeRun);
+  $("#delete-run").addEventListener("click", deleteRun);
 }
 
 setupTabs();

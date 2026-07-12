@@ -5,6 +5,8 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import shutil
+import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, replace
@@ -159,6 +161,18 @@ class WebRunManager:
             task.cancel()
         await asyncio.gather(task, return_exceptions=True)
         return state
+
+    async def forget(self, config_id: str, run_id: str) -> None:
+        """Forget a terminal managed run while rejecting deletion of an active task."""
+        async with self.lock:
+            state = self.states.get(run_id)
+            task = self.tasks.get(run_id)
+            if state is not None and state.config_id != config_id:
+                raise ValueError(f"run {run_id} does not belong to config {config_id}")
+            if task is not None and not task.done():
+                raise RuntimeError(f"run {run_id} is still running")
+            self.states.pop(run_id, None)
+            self.tasks.pop(run_id, None)
 
     async def shutdown(self) -> None:
         tasks = [task for task in self.tasks.values() if not task.done()]
@@ -370,8 +384,27 @@ def _output_tokens(usage_json: str | None) -> int:
         return 0
 
 
+def _output_tokens_estimated(usage_json: str | None) -> bool:
+    if not usage_json:
+        return False
+    try:
+        usage = json.loads(usage_json)
+    except (TypeError, json.JSONDecodeError):
+        return False
+    return bool(usage.get("output_tokens_estimated")) if isinstance(usage, dict) else False
+
+
 def _job_payload(row: dict[str, Any]) -> dict[str, Any]:
     has_result = row["result_job_id"] is not None
+    if has_result:
+        output_tokens: int | None = _output_tokens(row["usage_json"])
+        output_tokens_estimated: bool | None = _output_tokens_estimated(row["usage_json"])
+    elif row["live_output_tokens"] is not None:
+        output_tokens = int(row["live_output_tokens"])
+        output_tokens_estimated = bool(row["live_tokens_estimated"])
+    else:
+        output_tokens = None
+        output_tokens_estimated = None
     return {
         "job_id": row["job_id"],
         "profile_id": row["profile_id"],
@@ -381,11 +414,53 @@ def _job_payload(row: dict[str, Any]) -> dict[str, Any]:
         "title": row["title"],
         "trial": row["trial"],
         "status": row["status"],
-        "output_tokens": _output_tokens(row["usage_json"]) if has_result else None,
+        "output_tokens": output_tokens,
+        "output_tokens_estimated": output_tokens_estimated,
         "valid": bool(row["valid"]) if has_result else None,
         "error_type": row["error_type"] if has_result else None,
         "attempt_count": row["attempt_count"],
     }
+
+
+def _stage_run_directories(plan: ResolvedPlan, run_id: str) -> list[tuple[Path, Path]]:
+    staged: list[tuple[Path, Path]] = []
+    seen: set[Path] = set()
+    try:
+        for root in (plan.artifacts.resolve(), plan.reports.resolve()):
+            target = (root / run_id).resolve()
+            if target.parent != root:
+                raise ValueError(f"unsafe run directory: {target}")
+            if target in seen or not target.exists():
+                continue
+            seen.add(target)
+            trash = root / f".{run_id}.deleting-{uuid.uuid4().hex}"
+            target.rename(trash)
+            staged.append((target, trash))
+    except Exception:
+        for target, trash in reversed(staged):
+            if trash.exists() and not target.exists():
+                trash.rename(target)
+        raise
+    return staged
+
+
+def _restore_run_directories(staged: list[tuple[Path, Path]]) -> None:
+    for target, trash in reversed(staged):
+        if trash.exists() and not target.exists():
+            trash.rename(target)
+
+
+def _purge_run_directories(staged: list[tuple[Path, Path]]) -> list[str]:
+    errors: list[str] = []
+    for _, trash in staged:
+        try:
+            if trash.is_dir():
+                shutil.rmtree(trash)
+            else:
+                trash.unlink()
+        except OSError as error:
+            errors.append(f"{trash}: {error}")
+    return errors
 
 
 def _run_payload(
@@ -393,6 +468,7 @@ def _run_payload(
     config_id: str,
     run_id: str,
     include_report: bool = True,
+    storage: Storage | None = None,
 ) -> dict[str, Any]:
     plan = context.run_config(config_id)
     managed = context.manager.states.get(run_id)
@@ -412,7 +488,8 @@ def _run_payload(
             "jobs": [],
             "report": None,
         }
-    storage = Storage(plan.database)
+    owns_storage = storage is None
+    storage = storage or Storage(plan.database)
     try:
         run = storage.get_run(run_id)
         if run is None:
@@ -448,7 +525,8 @@ def _run_payload(
             "report": report,
         }
     finally:
-        storage.close()
+        if owns_storage:
+            storage.close()
 
 
 def create_app(workspace: Path | None = None) -> FastAPI:
@@ -627,18 +705,32 @@ def create_app(workspace: Path | None = None) -> FastAPI:
     @app.get("/api/run-configs/{config_id}/runs/{run_id}/events")
     async def run_events(config_id: str, run_id: str, request: Request) -> StreamingResponse:
         initial = _run_payload(context, config_id, run_id, include_report=False)
+        plan = context.run_config(config_id)
 
         async def event_stream() -> AsyncIterator[str]:
             payload = initial
-            while True:
-                encoded = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
-                yield f"data: {encoded}\n\n"
-                if payload["status"] not in {"starting", "running", "stopping"}:
-                    return
-                await asyncio.sleep(0.75)
-                if await request.is_disconnected():
-                    return
-                payload = _run_payload(context, config_id, run_id, include_report=False)
+            stream_storage: Storage | None = None
+            try:
+                while True:
+                    encoded = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+                    yield f"data: {encoded}\n\n"
+                    if payload["status"] not in {"starting", "running", "stopping"}:
+                        return
+                    await asyncio.sleep(0.25)
+                    if await request.is_disconnected():
+                        return
+                    if stream_storage is None and plan.database.exists():
+                        stream_storage = Storage(plan.database)
+                    payload = _run_payload(
+                        context,
+                        config_id,
+                        run_id,
+                        include_report=False,
+                        storage=stream_storage,
+                    )
+            finally:
+                if stream_storage is not None:
+                    stream_storage.close()
 
         return StreamingResponse(
             event_stream(),
@@ -649,6 +741,47 @@ def create_app(workspace: Path | None = None) -> FastAPI:
                 "X-Accel-Buffering": "no",
             },
         )
+
+    @app.delete("/api/run-configs/{config_id}/runs/{run_id}")
+    async def delete_run(config_id: str, run_id: str) -> dict[str, Any]:
+        plan = context.run_config(config_id)
+        storage = Storage(plan.database)
+        try:
+            run = storage.get_run(run_id)
+            if run is None or run["plan_id"] != plan.spec.id:
+                raise HTTPException(status_code=404, detail=f"unknown run: {run_id}")
+            if run["status"] in {"starting", "running", "stopping"}:
+                raise HTTPException(status_code=409, detail="运行中的 Run 不能删除，请先中断")
+        finally:
+            storage.close()
+        try:
+            await manager.forget(config_id, run_id)
+        except ValueError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        except RuntimeError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+
+        try:
+            staged = _stage_run_directories(plan, run_id)
+        except (OSError, ValueError) as error:
+            raise HTTPException(status_code=500, detail=f"无法暂存 Run 产物：{error}") from error
+        delete_storage: Storage | None = None
+        try:
+            delete_storage = Storage(plan.database)
+            delete_storage.delete_run(run_id)
+        except Exception as error:
+            _restore_run_directories(staged)
+            raise HTTPException(status_code=500, detail=f"无法删除 Run 记录：{error}") from error
+        finally:
+            if delete_storage is not None:
+                delete_storage.close()
+        cleanup_errors = _purge_run_directories(staged)
+        return {
+            "run_id": run_id,
+            "deleted": True,
+            "removed_directories": len(staged),
+            "cleanup_errors": cleanup_errors,
+        }
 
     @app.post(
         "/api/run-configs/{config_id}/runs/{run_id}/stop",

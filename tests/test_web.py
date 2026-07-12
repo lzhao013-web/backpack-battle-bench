@@ -1,8 +1,10 @@
 import asyncio
 import json
 import re
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import httpx
 import pytest
@@ -23,6 +25,37 @@ ROOT = Path(__file__).resolve().parents[1]
 REAL_ASYNC_CLIENT = httpx.AsyncClient
 
 
+def openai_stream_response(answer: str, output_tokens: int = 20) -> httpx.Response:
+    midpoint = max(1, len(answer) // 2)
+    events = [
+        {
+            "id": "web-mock",
+            "choices": [{"delta": {"content": answer[:midpoint]}, "finish_reason": None}],
+        },
+        {
+            "id": "web-mock",
+            "choices": [{"delta": {"content": answer[midpoint:]}, "finish_reason": None}],
+        },
+        {
+            "id": "web-mock",
+            "choices": [{"delta": {}, "finish_reason": "stop"}],
+        },
+        {
+            "id": "web-mock",
+            "choices": [],
+            "usage": {"prompt_tokens": 100, "completion_tokens": output_tokens},
+        },
+    ]
+    content = "\n\n".join(f"data: {json.dumps(event)}" for event in events)
+    content += "\n\ndata: [DONE]\n\n"
+    return httpx.Response(
+        200,
+        content=content,
+        headers={"Content-Type": "text/event-stream"},
+        request=httpx.Request("POST", "https://mock.test/stream"),
+    )
+
+
 class WebFakeAsyncClient:
     prompt_answers: dict[str, str] = {}
     requests: list[dict[str, Any]] = []
@@ -30,22 +63,19 @@ class WebFakeAsyncClient:
     def __init__(self, **_: object) -> None:
         pass
 
-    async def post(self, url: str, headers: dict[str, str], json: dict[str, Any]) -> httpx.Response:
+    @asynccontextmanager
+    async def stream(
+        self,
+        method: str,
+        url: str,
+        headers: dict[str, str],
+        json: dict[str, Any],
+    ) -> AsyncIterator[httpx.Response]:
+        assert method == "POST"
+        assert json["stream"] is True
         self.requests.append({"url": url, "headers": headers, "json": json})
         prompt = json["messages"][0]["content"]
-        return httpx.Response(
-            200,
-            json={
-                "id": "web-mock",
-                "choices": [
-                    {
-                        "finish_reason": "stop",
-                        "message": {"content": self.prompt_answers[prompt]},
-                    }
-                ],
-                "usage": {"prompt_tokens": 100, "completion_tokens": 20},
-            },
-        )
+        yield openai_stream_response(self.prompt_answers[prompt])
 
     async def aclose(self) -> None:
         pass
@@ -57,10 +87,77 @@ class WebSlowAsyncClient:
     def __init__(self, **_: object) -> None:
         pass
 
-    async def post(self, url: str, headers: dict[str, str], json: dict[str, Any]) -> httpx.Response:
+    @asynccontextmanager
+    async def stream(
+        self,
+        method: str,
+        url: str,
+        headers: dict[str, str],
+        json: dict[str, Any],
+    ) -> AsyncIterator[httpx.Response]:
         WebSlowAsyncClient.calls += 1
         await asyncio.sleep(30)
         raise AssertionError("slow request should be cancelled")
+        yield openai_stream_response("{}")
+
+    async def aclose(self) -> None:
+        pass
+
+
+class GatedStreamResponse:
+    def __init__(self, answer: str) -> None:
+        self.answer = answer
+        self.status_code = 200
+        self.headers = httpx.Headers({"Content-Type": "text/event-stream"})
+
+    async def aiter_lines(self) -> AsyncIterator[str]:
+        midpoint = max(1, len(self.answer) // 2)
+        first = {
+            "id": "live-token-mock",
+            "choices": [{"delta": {"content": self.answer[:midpoint]}, "finish_reason": None}],
+        }
+        yield f"data: {json.dumps(first)}"
+        WebLiveTokenAsyncClient.first_chunk = True
+        while not WebLiveTokenAsyncClient.release:
+            await asyncio.sleep(0.01)
+        events = [
+            {
+                "id": "live-token-mock",
+                "choices": [{"delta": {"content": self.answer[midpoint:]}, "finish_reason": None}],
+            },
+            {
+                "id": "live-token-mock",
+                "choices": [{"delta": {}, "finish_reason": "stop"}],
+            },
+            {
+                "id": "live-token-mock",
+                "choices": [],
+                "usage": {"prompt_tokens": 100, "completion_tokens": 20},
+            },
+        ]
+        for event in events:
+            yield f"data: {json.dumps(event)}"
+        yield "data: [DONE]"
+
+
+class WebLiveTokenAsyncClient:
+    prompt_answers: dict[str, str] = {}
+    first_chunk = False
+    release = False
+
+    def __init__(self, **_: object) -> None:
+        pass
+
+    @asynccontextmanager
+    async def stream(
+        self,
+        method: str,
+        url: str,
+        headers: dict[str, str],
+        json: dict[str, Any],
+    ) -> AsyncIterator[httpx.Response]:
+        prompt = json["messages"][0]["content"]
+        yield cast(httpx.Response, GatedStreamResponse(self.prompt_answers[prompt]))
 
     async def aclose(self) -> None:
         pass
@@ -93,6 +190,9 @@ def test_web_scenario_lab_uses_real_validator() -> None:
             assert "受 run.yaml 全局并发" in script
             assert "async function stopRun" in script
             assert '$("#stop-run").addEventListener("click", stopRun)' in script
+            assert "async function deleteRun" in script
+            assert '$("#delete-run").addEventListener("click", deleteRun)' in script
+            assert "delete-run" in root.text
             assert "function startRunStream" in script
             assert "new EventSource" in script
             assert "run-jobs-table" in root.text
@@ -240,6 +340,7 @@ def test_web_can_start_and_report_mock_run(tmp_path: Path, monkeypatch: pytest.M
             assert len(payload["jobs"]) == 4
             assert all(job["status"] == "completed" for job in payload["jobs"])
             assert all(job["output_tokens"] == 20 for job in payload["jobs"])
+            assert all(not job["output_tokens_estimated"] for job in payload["jobs"])
             assert payload["report"]["profiles"][0]["overall_score"] == 100
             events = await client.get(f"/api/run-configs/{config_id}/runs/{run_id}/events")
             assert events.status_code == 200
@@ -259,6 +360,17 @@ def test_web_can_start_and_report_mock_run(tmp_path: Path, monkeypatch: pytest.M
             assert "单题与 Trial 明细" in html.text
             assert "mixed-3x3" in html.text
             assert "验证明细" in html.text
+            assert (tmp_path / "data" / "artifacts" / run_id).is_dir()
+            assert (tmp_path / "data" / "reports" / run_id).is_dir()
+            deleted = await client.delete(f"/api/run-configs/{config_id}/runs/{run_id}")
+            assert deleted.status_code == 200
+            assert deleted.json()["deleted"] is True
+            assert not (tmp_path / "data" / "artifacts" / run_id).exists()
+            assert not (tmp_path / "data" / "reports" / run_id).exists()
+            assert (
+                await client.get(f"/api/run-configs/{config_id}/runs/{run_id}")
+            ).status_code == 404
+            assert (await client.get(f"/api/run-configs/{config_id}/runs")).json() == []
 
     asyncio.run(exercise())
 
@@ -309,6 +421,9 @@ def test_web_can_interrupt_an_active_run(tmp_path: Path, monkeypatch: pytest.Mon
                 await asyncio.sleep(0.01)
             assert WebSlowAsyncClient.calls > 0
 
+            active_delete = await client.delete(f"/api/run-configs/{config_id}/runs/{run_id}")
+            assert active_delete.status_code == 409
+
             stream_task = asyncio.create_task(
                 client.get(f"/api/run-configs/{config_id}/runs/{run_id}/events")
             )
@@ -338,6 +453,107 @@ def test_web_can_interrupt_an_active_run(tmp_path: Path, monkeypatch: pytest.Mon
 
             stopped_again = await client.post(f"/api/run-configs/{config_id}/runs/{run_id}/stop")
             assert stopped_again.status_code == 409
+
+    asyncio.run(exercise())
+
+
+def test_web_streams_live_output_token_estimates(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config_dir = tmp_path / "configs"
+    models = ModelsConfig(
+        profiles=[
+            ModelProfile(
+                id="live-token-model",
+                protocol="openai_chat",
+                base_url=HttpUrl("https://live.test/v1"),
+                model="live-model",
+                auth_mode="none",
+                limits=ProviderLimits(concurrency=1, retries=0),
+            )
+        ]
+    )
+    atomic_write_yaml(config_dir / "models.yaml", models)
+    run = RunPlan(
+        id="web-live-tokens",
+        suite=str(ROOT / "suites" / "smoke-v1.yaml"),
+        models="models.yaml",
+        trials=1,
+        concurrency=1,
+        database="../data/results.sqlite3",
+        artifacts="../data/artifacts",
+        reports="../data/reports",
+    )
+    run_path = config_dir / "run.yaml"
+    atomic_write_yaml(run_path, run)
+    resolved = resolve_plan(run_path, PluginRegistry(load_external=False))
+    WebLiveTokenAsyncClient.prompt_answers = {
+        item.prompt: json.dumps(item.oracle.witness.model_dump(mode="json"), ensure_ascii=False)
+        for item in resolved.suite.scenarios
+        if item.oracle.witness is not None
+    }
+    WebLiveTokenAsyncClient.first_chunk = False
+    WebLiveTokenAsyncClient.release = False
+    monkeypatch.setattr("backpack_bench.runner.httpx.AsyncClient", WebLiveTokenAsyncClient)
+
+    async def exercise() -> None:
+        app = create_app(tmp_path)
+        transport = httpx.ASGITransport(app=app)
+        async with (
+            app.router.lifespan_context(app),
+            REAL_ASYNC_CLIENT(transport=transport, base_url="http://test") as client,
+        ):
+            config_id = (await client.get("/api/run-configs")).json()[0]["id"]
+            started = await client.post(f"/api/run-configs/{config_id}/runs")
+            run_id = started.json()["run_id"]
+            for _ in range(100):
+                if WebLiveTokenAsyncClient.first_chunk:
+                    break
+                await asyncio.sleep(0.01)
+            if not WebLiveTokenAsyncClient.first_chunk:
+                WebLiveTokenAsyncClient.release = True
+            assert WebLiveTokenAsyncClient.first_chunk
+
+            live_payload: dict[str, Any] | None = None
+            for _ in range(100):
+                live_payload = (
+                    await client.get(f"/api/run-configs/{config_id}/runs/{run_id}")
+                ).json()
+                running = [job for job in live_payload["jobs"] if job["status"] == "running"]
+                if running and running[0]["output_tokens"]:
+                    break
+                await asyncio.sleep(0.01)
+            assert live_payload is not None
+            running = [job for job in live_payload["jobs"] if job["status"] == "running"]
+            if not running or not running[0]["output_tokens"]:
+                WebLiveTokenAsyncClient.release = True
+            assert running[0]["output_tokens"] > 0
+            if running[0]["output_tokens_estimated"] is not True:
+                WebLiveTokenAsyncClient.release = True
+            assert running[0]["output_tokens_estimated"] is True
+
+            stream_task = asyncio.create_task(
+                client.get(f"/api/run-configs/{config_id}/runs/{run_id}/events")
+            )
+            await asyncio.sleep(0.3)
+            WebLiveTokenAsyncClient.release = True
+            stream = await asyncio.wait_for(stream_task, timeout=3)
+            snapshots = [
+                json.loads(line.removeprefix("data: "))
+                for line in stream.text.splitlines()
+                if line.startswith("data: ")
+            ]
+            assert any(
+                job["output_tokens_estimated"] and job["output_tokens"] > 0
+                for snapshot in snapshots
+                for job in snapshot["jobs"]
+                if job["status"] == "running"
+            )
+            assert snapshots[-1]["status"] == "completed"
+            assert all(
+                job["output_tokens"] == 20 and not job["output_tokens_estimated"]
+                for job in snapshots[-1]["jobs"]
+            )
 
     asyncio.run(exercise())
 

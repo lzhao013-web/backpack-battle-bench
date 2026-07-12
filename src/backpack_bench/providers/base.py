@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 from backpack_bench.canonical import content_hash
@@ -19,6 +19,15 @@ class ParsedCompletion:
     response_id: str | None
 
 
+@dataclass(frozen=True)
+class ParsedStreamEvent:
+    content_delta: str = ""
+    reasoning_delta: str = ""
+    finish_reason: str | None = None
+    usage: dict[str, Any] = field(default_factory=dict)
+    response_id: str | None = None
+
+
 class ProviderAdapter(Protocol):
     def endpoint(self, profile: ModelProfile) -> str: ...
 
@@ -27,6 +36,8 @@ class ProviderAdapter(Protocol):
     def body(self, profile: ModelProfile, prompt: str) -> dict[str, Any]: ...
 
     def parse(self, value: Any) -> ParsedCompletion: ...
+
+    def parse_stream_event(self, value: Any) -> ParsedStreamEvent: ...
 
 
 def effective_endpoint(profile: ModelProfile) -> str:
