@@ -1,0 +1,152 @@
+{
+  "entries": [
+    {
+      "attack_best": 0,
+      "attack_mean": 0.0,
+      "attack_stddev": 0.0,
+      "attack_worst": 0,
+      "best_of_3_score": 0.0,
+      "cached_tokens": 0,
+      "completed_at": "2026-07-13T13:46:26.203941+00:00",
+      "display_name": "grok-4.5",
+      "eligibility_reasons": [],
+      "eligible": true,
+      "error_counts": {
+        "api_http": 3
+      },
+      "estimated_cost": null,
+      "groups": {
+        "difficulty": [
+          {
+            "attack_best": 0,
+            "attack_mean": 0.0,
+            "attack_stddev": 0.0,
+            "attack_worst": 0,
+            "best_of_3_score": 0.0,
+            "cached_tokens": 0,
+            "error_counts": {
+              "api_http": 3
+            },
+            "estimated_cost": null,
+            "group_value": "easy",
+            "input_tokens": 0,
+            "jobs": 3,
+            "latency_p50_ms": 1333.538902021246,
+            "latency_p95_ms": 1682.4323161068605,
+            "optimal_hit_rate": 0.0,
+            "output_tokens": 0,
+            "overall_score": 0.0,
+            "reasoning_tokens": 0,
+            "retry_rate": 0.0,
+            "scenarios": 1,
+            "truncation_rate": 0.0,
+            "valid_rate": 0.0
+          }
+        ],
+        "tag": [
+          {
+            "attack_best": 0,
+            "attack_mean": 0.0,
+            "attack_stddev": 0.0,
+            "attack_worst": 0,
+            "best_of_3_score": 0.0,
+            "cached_tokens": 0,
+            "error_counts": {
+              "api_http": 3
+            },
+            "estimated_cost": null,
+            "group_value": "curated",
+            "input_tokens": 0,
+            "jobs": 3,
+            "latency_p50_ms": 1333.538902021246,
+            "latency_p95_ms": 1682.4323161068605,
+            "optimal_hit_rate": 0.0,
+            "output_tokens": 0,
+            "overall_score": 0.0,
+            "reasoning_tokens": 0,
+            "retry_rate": 0.0,
+            "scenarios": 1,
+            "truncation_rate": 0.0,
+            "valid_rate": 0.0
+          },
+          {
+            "attack_best": 0,
+            "attack_mean": 0.0,
+            "attack_stddev": 0.0,
+            "attack_worst": 0,
+            "best_of_3_score": 0.0,
+            "cached_tokens": 0,
+            "error_counts": {
+              "api_http": 3
+            },
+            "estimated_cost": null,
+            "group_value": "packing",
+            "input_tokens": 0,
+            "jobs": 3,
+            "latency_p50_ms": 1333.538902021246,
+            "latency_p95_ms": 1682.4323161068605,
+            "optimal_hit_rate": 0.0,
+            "output_tokens": 0,
+            "overall_score": 0.0,
+            "reasoning_tokens": 0,
+            "retry_rate": 0.0,
+            "scenarios": 1,
+            "truncation_rate": 0.0,
+            "valid_rate": 0.0
+          }
+        ]
+      },
+      "input_tokens": 0,
+      "jobs": 3,
+      "latency_p50_ms": 1333.538902021246,
+      "latency_p95_ms": 1682.4323161068605,
+      "model": "grok-4.5",
+      "optimal_hit_rate": 0.0,
+      "output_tokens": 0,
+      "overall_score": 0.0,
+      "plan_id": "visual-smoke",
+      "profile_hash": "99ba823b791a0687694ca64ef8a04640480584c74401b9bc49063d1eeb664ed8",
+      "profile_id": "web-99ba823b791a",
+      "protocol": "openai_chat",
+      "reasoning_tokens": 0,
+      "retry_rate": 0.0,
+      "run_id": "20260713T134624Z_d9403ed2ee_c28f95",
+      "scenario_results": [
+        {
+          "attack_best": 0,
+          "attack_mean": 0.0,
+          "attack_stddev": 0.0,
+          "attack_worst": 0,
+          "difficulty": "easy",
+          "error_counts": {
+            "api_http": 3
+          },
+          "optimal_hit_rate": 0.0,
+          "oracle_attack": 18,
+          "ratio_best_of_3": 0.0,
+          "ratio_mean": 0.0,
+          "scenario_id": "packing-3x3",
+          "tags": [
+            "curated",
+            "packing"
+          ],
+          "title": "3×3 纯装填取舍题",
+          "trials": 3,
+          "valid_rate": 0.0,
+          "weight": 1.0
+        }
+      ],
+      "scenarios": 1,
+      "started_at": "2026-07-13T13:46:24.424854+00:00",
+      "thinking_effort": "high",
+      "trials": 3,
+      "truncation_rate": 0.0,
+      "valid_rate": 0.0
+    }
+  ],
+  "prompt_mode": "visual_full",
+  "run_id": "20260713T134624Z_d9403ed2ee_c28f95",
+  "schema_version": 1,
+  "suite_hash": "294ab4ca73139e74ca7d97c94fdb4f661776689edf6f739662e9a07d828752ad",
+  "suite_id": "smoke-v1"
+}
