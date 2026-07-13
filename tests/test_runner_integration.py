@@ -50,7 +50,7 @@ def test_long_sse_stream_is_incremental_and_spooled(
     secret = "stream-secret-that-must-be-redacted"
     reasoning_chunks = [secret, *("x" for _ in range(3000))]
     content_chunks = list(answer)
-    events = [
+    events: list[dict[str, Any]] = [
         {
             "id": "long-stream",
             "choices": [{"delta": {"reasoning_content": chunk}, "finish_reason": None}],

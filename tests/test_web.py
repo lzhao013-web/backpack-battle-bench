@@ -866,9 +866,7 @@ def test_web_runtime_api_profile_uses_ephemeral_key(
                         "api_key": secret,
                         "params": {
                             "thinking_effort": "xhigh",
-                            "extra_body": {
-                                "chat_template_kwargs": {"enable_thinking": True}
-                            },
+                            "extra_body": {"chat_template_kwargs": {"enable_thinking": True}},
                         },
                         "limits": {"concurrency": 2, "retries": 0},
                     }
