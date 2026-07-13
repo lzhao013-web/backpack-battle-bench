@@ -40,7 +40,12 @@ from backpack_bench.schemas import (
     SuiteSpec,
     VisualPackSpec,
 )
-from backpack_bench.static_site import build_static_site, export_results_snapshot
+from backpack_bench.static_site import (
+    aggregate_run_snapshots,
+    build_static_site,
+    export_results_snapshot,
+    export_run_snapshots,
+)
 from backpack_bench.storage import Storage
 from backpack_bench.suite import load_suite
 from backpack_bench.visual import render_card_visual_pack, scaffold_visual_pack
@@ -342,6 +347,47 @@ def site_snapshot_command(
             workspace.resolve(),
             database.resolve(),
             output.resolve(),
+        )
+        _print_json({"snapshot": str(path)})
+    except Exception as error:
+        _fail(error)
+
+
+@site_app.command("export-runs")
+def site_export_runs_command(
+    workspace: Annotated[Path, typer.Option("--workspace", "-w")] = Path("."),
+    database: Annotated[Path, typer.Option("--database", "-d")] = Path(".bbbench/results.sqlite3"),
+    output: Annotated[Path, typer.Option("--output", "-o")] = Path("leaderboard/runs"),
+) -> None:
+    """Export one public aggregate file per completed run for conflict-free merging."""
+    try:
+        paths = export_run_snapshots(
+            workspace.resolve(),
+            database.resolve(),
+            output.resolve(),
+        )
+        _print_json({"run_snapshots": [str(path) for path in paths], "count": len(paths)})
+    except Exception as error:
+        _fail(error)
+
+
+@site_app.command("aggregate")
+def site_aggregate_command(
+    workspace: Annotated[Path, typer.Option("--workspace", "-w")] = Path("."),
+    runs_dirs: Annotated[list[Path] | None, typer.Option("--runs-dir")] = None,
+    baseline: Annotated[Path | None, typer.Option("--baseline")] = Path("leaderboard/results.json"),
+    output: Annotated[Path, typer.Option("--output", "-o")] = Path(
+        ".bbbench/leaderboard-results.json"
+    ),
+) -> None:
+    """Aggregate independently published run files into a complete leaderboard snapshot."""
+    try:
+        selected_runs_dirs = runs_dirs or [Path("leaderboard/runs")]
+        path = aggregate_run_snapshots(
+            workspace.resolve(),
+            [path.resolve() for path in selected_runs_dirs],
+            output.resolve(),
+            baseline.resolve() if baseline is not None else None,
         )
         _print_json({"snapshot": str(path)})
     except Exception as error:

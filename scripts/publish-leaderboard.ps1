@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
     [string]$Database = ".bbbench/results.sqlite3",
-    [string]$Snapshot = "leaderboard/results.json",
+    [string]$RunsDirectory = "leaderboard/runs",
+    [string]$Snapshot = ".bbbench/leaderboard-results.local.json",
     [string]$BuildOutput = ".bbbench/pages",
     [string]$Remote = "origin",
     [string]$Branch = "main",
@@ -59,6 +60,48 @@ function Ensure-PagesEnabled {
     Invoke-Native gh api --method POST "repos/{owner}/{repo}/pages" -f build_type=workflow | Out-Null
 }
 
+function Sync-PublishBranch {
+    Write-Host "同步远端发布分支..." -ForegroundColor Cyan
+    Invoke-Native git fetch $Remote $Branch
+    $remoteHead = (& git rev-parse FETCH_HEAD).Trim()
+    if ($LASTEXITCODE -ne 0) {
+        throw "无法读取远端分支 SHA。"
+    }
+
+    & git merge-base --is-ancestor $remoteHead HEAD
+    if ($LASTEXITCODE -eq 0) {
+        return
+    }
+    & git merge-base --is-ancestor HEAD $remoteHead
+    if ($LASTEXITCODE -eq 0) {
+        Invoke-Native git merge --ff-only $remoteHead
+        return
+    }
+
+    Write-Host "本地与远端都有新提交，正在 rebase 后合并各机器的 Run..." -ForegroundColor Cyan
+    Invoke-Native git rebase --autostash $remoteHead
+}
+
+function Push-WithRebaseRetry {
+    for ($attempt = 1; $attempt -le 3; $attempt++) {
+        & git push $Remote "HEAD:$Branch"
+        if ($LASTEXITCODE -eq 0) {
+            return
+        }
+        if ($attempt -eq 3) {
+            break
+        }
+        Write-Host "远端刚收到其他发布，重新合并后重试（$($attempt + 1)/3）..." -ForegroundColor Cyan
+        Invoke-Native git fetch $Remote $Branch
+        $remoteHead = (& git rev-parse FETCH_HEAD).Trim()
+        if ($LASTEXITCODE -ne 0) {
+            throw "无法读取远端分支 SHA。"
+        }
+        Invoke-Native git rebase --autostash $remoteHead
+    }
+    throw "推送失败；已重试 3 次。"
+}
+
 function Wait-PagesDeployment {
     param(
         [Parameter(Mandatory)]
@@ -110,8 +153,8 @@ Push-Location $repoRoot
 try {
     Assert-GitmojiCommitMessage -Message $CommitMessage
 
-    if ($LocalOnly -and -not $PSBoundParameters.ContainsKey("Snapshot")) {
-        $Snapshot = ".bbbench/leaderboard-results.local.json"
+    if ($LocalOnly -and -not $PSBoundParameters.ContainsKey("RunsDirectory")) {
+        $RunsDirectory = ".bbbench/leaderboard-runs.local"
     }
 
     $requiredCommands = @("uv")
@@ -141,6 +184,7 @@ try {
 
         foreach ($requiredInHead in @(
             ".github/workflows/pages.yml",
+            "src/backpack_bench/cli.py",
             "src/backpack_bench/static_site.py"
         )) {
             & git cat-file -e "HEAD:$requiredInHead" 2>$null
@@ -148,7 +192,18 @@ try {
                 throw "'$requiredInHead' 尚未提交。请先提交并推送排行榜基础功能，再用本脚本更新成绩。"
             }
         }
+        & git diff --quiet HEAD -- `
+            ".gitignore" `
+            ".github/workflows/pages.yml" `
+            "scripts/publish-leaderboard.sh" `
+            "scripts/publish-leaderboard.ps1" `
+            "src/backpack_bench/cli.py" `
+            "src/backpack_bench/static_site.py"
+        if ($LASTEXITCODE -ne 0) {
+            throw "排行榜发布功能有未提交的修改。请先提交并推送这些代码，再发布成绩。"
+        }
 
+        Sync-PublishBranch
         Ensure-PagesEnabled
     }
 
@@ -156,25 +211,33 @@ try {
         throw "找不到结果数据库：$Database"
     }
 
-    Write-Host "[1/4] 导出公开排行榜快照" -ForegroundColor Cyan
-    Invoke-Native uv run --frozen bbbench site snapshot `
+    Write-Host "[1/5] 导出独立 Run 快照" -ForegroundColor Cyan
+    Invoke-Native uv run --frozen bbbench site export-runs `
         --workspace $repoRoot `
         --database $Database `
+        --output $RunsDirectory
+
+    Write-Host "[2/5] 聚合全部 Run" -ForegroundColor Cyan
+    Invoke-Native uv run --frozen bbbench site aggregate `
+        --workspace $repoRoot `
+        --runs-dir $RunsDirectory `
+        --baseline "leaderboard/results.json" `
         --output $Snapshot
 
     if (-not $SkipBuild) {
-        Write-Host "[2/4] 本地构建静态站点" -ForegroundColor Cyan
+        Write-Host "[3/5] 本地构建静态站点" -ForegroundColor Cyan
         Invoke-Native uv run --frozen bbbench site build `
             --workspace $repoRoot `
             --snapshot $Snapshot `
             --output $BuildOutput
     }
     else {
-        Write-Host "[2/4] 已跳过本地静态构建" -ForegroundColor DarkGray
+        Write-Host "[3/5] 已跳过本地静态构建" -ForegroundColor DarkGray
     }
 
     if ($LocalOnly) {
         Write-Host "本地校验完成，未提交或推送任何内容。" -ForegroundColor Green
+        Write-Host "Run 快照：$RunsDirectory"
         Write-Host "快照：$Snapshot"
         if (-not $SkipBuild) {
             Write-Host "站点：$BuildOutput"
@@ -182,16 +245,12 @@ try {
         return
     }
 
-    & git ls-files --error-unmatch -- $Snapshot >$null 2>$null
-    $snapshotTracked = $LASTEXITCODE -eq 0
-    & git diff --quiet -- $Snapshot
-    $diffExitCode = $LASTEXITCODE
-    if ($diffExitCode -gt 1) {
-        throw "无法检查排行榜快照差异：$Snapshot"
+    $runChanges = @(& git status --porcelain -- $RunsDirectory)
+    if ($LASTEXITCODE -ne 0) {
+        throw "无法检查 Run 快照差异：$RunsDirectory"
     }
-    $snapshotChanged = (-not $snapshotTracked) -or $diffExitCode -eq 1
-    if (-not $snapshotChanged) {
-        Write-Host "排行榜快照没有变化，无需创建提交。" -ForegroundColor Yellow
+    if ($runChanges.Count -eq 0) {
+        Write-Host "没有新的 Run 快照，无需创建提交。" -ForegroundColor Yellow
         if (Get-Command gh -ErrorAction SilentlyContinue) {
             Write-Host "触发一次 Pages 重新部署..." -ForegroundColor Cyan
             Invoke-Native gh workflow run pages.yml --ref $Branch
@@ -205,16 +264,16 @@ try {
         return
     }
 
-    Write-Host "[3/4] 提交排行榜快照" -ForegroundColor Cyan
-    Invoke-Native git add -- $Snapshot
+    Write-Host "[4/5] 提交独立 Run 快照" -ForegroundColor Cyan
+    Invoke-Native git add -- $RunsDirectory
     Invoke-Native git commit -m $CommitMessage
+
+    Write-Host "[5/5] 推送并触发 GitHub Pages" -ForegroundColor Cyan
+    Push-WithRebaseRetry
     $commitSha = (& git rev-parse HEAD).Trim()
     if ($LASTEXITCODE -ne 0) {
         throw "无法读取提交 SHA。"
     }
-
-    Write-Host "[4/4] 推送并触发 GitHub Pages" -ForegroundColor Cyan
-    Invoke-Native git push $Remote "HEAD:$Branch"
 
     if (-not $NoWait) {
         Wait-PagesDeployment -CommitSha $commitSha

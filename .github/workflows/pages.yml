@@ -38,8 +38,18 @@ jobs:
           version: "0.11.12"
           enable-cache: true
 
+      - name: Aggregate independently published runs
+        run: >-
+          uv run --frozen bbbench site aggregate
+          --runs-dir leaderboard/runs
+          --baseline leaderboard/results.json
+          --output .bbbench/leaderboard-results.json
+
       - name: Build standalone leaderboard
-        run: uv run --frozen bbbench site build --output .pages
+        run: >-
+          uv run --frozen bbbench site build
+          --snapshot .bbbench/leaderboard-results.json
+          --output .pages
 
       - name: Configure Pages
         uses: actions/configure-pages@v5

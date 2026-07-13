@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import shutil
 from collections.abc import Sequence
 from pathlib import Path
@@ -23,7 +24,9 @@ VISUAL_MODES: tuple[Literal["visual_shape", "visual_full"], ...] = (
     "visual_full",
 )
 SNAPSHOT_VERSION = 1
+RUN_SNAPSHOT_VERSION = 1
 SITE_DATA_VERSION = 2
+RUN_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 
 
 def _public_scenario_result(value: dict[str, Any]) -> dict[str, Any]:
@@ -146,51 +149,220 @@ def _load_public_suites(workspace: Path, registry: PluginRegistry) -> list[Resol
     ]
 
 
+def _completed_run_snapshots(
+    storage: Storage,
+    suites: Sequence[ResolvedSuite],
+) -> list[dict[str, Any]]:
+    snapshots: list[dict[str, Any]] = []
+    for suite in suites:
+        for prompt_mode in TRACKS:
+            benchmark_id = (
+                suite.spec.id if prompt_mode == "text" else f"{suite.spec.id}@{prompt_mode}"
+            )
+            for run in storage.latest_completed_runs(benchmark_id):
+                if str(run["suite_hash"]) != suite.suite_hash:
+                    continue
+                try:
+                    config = json.loads(str(run["config_json"]))
+                except (TypeError, json.JSONDecodeError):
+                    continue
+                if not isinstance(config, dict):
+                    continue
+                trials = int(config.get("trials", 1) or 1)
+                report = build_run_report(storage, str(run["run_id"]))
+                snapshots.append(
+                    {
+                        "schema_version": RUN_SNAPSHOT_VERSION,
+                        "run_id": str(run["run_id"]),
+                        "suite_id": suite.spec.id,
+                        "suite_hash": suite.suite_hash,
+                        "prompt_mode": prompt_mode,
+                        "entries": [
+                            _public_profile_result(
+                                profile,
+                                run,
+                                trials,
+                                len(suite.scenarios),
+                            )
+                            for profile in report["profiles"]
+                        ],
+                    }
+                )
+    return snapshots
+
+
+def _empty_candidates(
+    suites: Sequence[ResolvedSuite],
+) -> dict[tuple[str, str], list[dict[str, Any]]]:
+    return {(suite.spec.id, prompt_mode): [] for suite in suites for prompt_mode in TRACKS}
+
+
+def _current_suite_hashes(suites: Sequence[ResolvedSuite]) -> dict[str, str]:
+    return {suite.spec.id: suite.suite_hash for suite in suites}
+
+
+def _add_run_snapshot_candidates(
+    candidates: dict[tuple[str, str], list[dict[str, Any]]],
+    suite_hashes: dict[str, str],
+    snapshot: dict[str, Any],
+    source: Path | None = None,
+) -> None:
+    label = str(source) if source is not None else "run snapshot"
+    if snapshot.get("schema_version") != RUN_SNAPSHOT_VERSION:
+        raise ValueError(f"unsupported run snapshot schema in {label}")
+    run_id = snapshot.get("run_id")
+    suite_id = snapshot.get("suite_id")
+    suite_hash = snapshot.get("suite_hash")
+    prompt_mode = snapshot.get("prompt_mode")
+    entries = snapshot.get("entries")
+    if not isinstance(run_id, str) or not RUN_ID_PATTERN.fullmatch(run_id):
+        raise ValueError(f"invalid run_id in {label}")
+    if source is not None and source.name != f"{run_id}.json":
+        raise ValueError(f"run snapshot filename does not match run_id in {label}")
+    if not isinstance(suite_id, str) or not isinstance(suite_hash, str):
+        raise ValueError(f"invalid suite identity in {label}")
+    if prompt_mode not in TRACKS:
+        raise ValueError(f"invalid prompt_mode in {label}")
+    if not isinstance(entries, list) or not all(isinstance(entry, dict) for entry in entries):
+        raise ValueError(f"invalid entries in {label}")
+    if any(entry.get("run_id") != run_id for entry in entries):
+        raise ValueError(f"entry run_id does not match snapshot in {label}")
+    key = (suite_id, prompt_mode)
+    if key not in candidates or suite_hashes.get(suite_id) != suite_hash:
+        return
+    candidates[key].extend(dict(entry) for entry in entries)
+
+
+def _add_legacy_snapshot_candidates(
+    candidates: dict[tuple[str, str], list[dict[str, Any]]],
+    suite_hashes: dict[str, str],
+    snapshot: dict[str, Any],
+    source: Path,
+) -> None:
+    if snapshot.get("schema_version") != SNAPSHOT_VERSION:
+        raise ValueError(f"unsupported leaderboard snapshot schema in {source}")
+    tracks = snapshot.get("tracks")
+    if not isinstance(tracks, list):
+        raise ValueError(f"invalid tracks in {source}")
+    for track in tracks:
+        if not isinstance(track, dict):
+            raise ValueError(f"invalid track in {source}")
+        suite_id = track.get("suite_id")
+        suite_hash = track.get("suite_hash")
+        prompt_mode = track.get("prompt_mode")
+        entries = track.get("entries")
+        if not isinstance(suite_id, str) or prompt_mode not in TRACKS:
+            raise ValueError(f"invalid track identity in {source}")
+        if not isinstance(entries, list):
+            raise ValueError(f"invalid entries in {source}")
+        key = (suite_id, prompt_mode)
+        if key not in candidates or suite_hashes.get(suite_id) != suite_hash:
+            continue
+        if not all(isinstance(entry, dict) for entry in entries):
+            raise ValueError(f"invalid entries in {source}")
+        candidates[key].extend(dict(entry) for entry in entries)
+
+
+def _build_tracks(
+    suites: Sequence[ResolvedSuite],
+    candidates: dict[tuple[str, str], list[dict[str, Any]]],
+) -> list[dict[str, Any]]:
+    return [
+        {
+            "suite_id": suite.spec.id,
+            "suite_hash": suite.suite_hash,
+            "prompt_mode": prompt_mode,
+            "entries": _select_latest_profiles(candidates[(suite.spec.id, prompt_mode)]),
+        }
+        for suite in suites
+        for prompt_mode in TRACKS
+    ]
+
+
+def export_run_snapshots(workspace: Path, database: Path, output: Path) -> list[Path]:
+    """Export one aggregate-only public file per completed run without deleting older files."""
+    workspace = workspace.resolve()
+    output = output.resolve()
+    registry = PluginRegistry()
+    suites = _load_public_suites(workspace, registry)
+    storage = Storage(database.resolve())
+    try:
+        snapshots = _completed_run_snapshots(storage, suites)
+    finally:
+        storage.close()
+    paths: list[Path] = []
+    for snapshot in snapshots:
+        run_id = str(snapshot["run_id"])
+        if not RUN_ID_PATTERN.fullmatch(run_id):
+            raise ValueError(f"run_id cannot be used as a public snapshot filename: {run_id!r}")
+        path = output / f"{run_id}.json"
+        atomic_write_json(path, snapshot)
+        paths.append(path)
+    return paths
+
+
+def aggregate_run_snapshots(
+    workspace: Path,
+    run_directories: Sequence[Path],
+    output: Path,
+    baseline: Path | None = None,
+) -> Path:
+    """Merge independent run files and an optional legacy snapshot into one leaderboard."""
+    workspace = workspace.resolve()
+    registry = PluginRegistry()
+    suites = _load_public_suites(workspace, registry)
+    candidates = _empty_candidates(suites)
+    suite_hashes = _current_suite_hashes(suites)
+    baseline = baseline.resolve() if baseline is not None else None
+    if baseline is not None and baseline.is_file():
+        value = json.loads(baseline.read_text(encoding="utf-8"))
+        if not isinstance(value, dict):
+            raise ValueError(f"invalid leaderboard snapshot in {baseline}")
+        _add_legacy_snapshot_candidates(candidates, suite_hashes, value, baseline)
+    seen_runs: dict[str, dict[str, Any]] = {}
+    for directory in run_directories:
+        directory = directory.resolve()
+        if not directory.exists():
+            continue
+        if not directory.is_dir():
+            raise ValueError(f"run snapshot path is not a directory: {directory}")
+        for path in sorted(directory.glob("*.json")):
+            value = json.loads(path.read_text(encoding="utf-8"))
+            if not isinstance(value, dict):
+                raise ValueError(f"invalid run snapshot in {path}")
+            run_id = value.get("run_id")
+            if isinstance(run_id, str) and run_id in seen_runs:
+                if seen_runs[run_id] != value:
+                    raise ValueError(f"conflicting snapshots for run {run_id}")
+                continue
+            _add_run_snapshot_candidates(candidates, suite_hashes, value, path)
+            if isinstance(run_id, str):
+                seen_runs[run_id] = value
+    atomic_write_json(
+        output.resolve(),
+        {"schema_version": SNAPSHOT_VERSION, "tracks": _build_tracks(suites, candidates)},
+    )
+    return output.resolve()
+
+
 def export_results_snapshot(workspace: Path, database: Path, output: Path) -> Path:
     """Export aggregate-only leaderboard data; model outputs and credentials stay private."""
     workspace = workspace.resolve()
     registry = PluginRegistry()
     suites = _load_public_suites(workspace, registry)
-    tracks: list[dict[str, Any]] = []
     storage = Storage(database.resolve())
     try:
-        for suite in suites:
-            for prompt_mode in TRACKS:
-                benchmark_id = (
-                    suite.spec.id if prompt_mode == "text" else f"{suite.spec.id}@{prompt_mode}"
-                )
-                candidates: list[dict[str, Any]] = []
-                for run in storage.latest_completed_runs(benchmark_id):
-                    if str(run["suite_hash"]) != suite.suite_hash:
-                        continue
-                    try:
-                        config = json.loads(str(run["config_json"]))
-                    except (TypeError, json.JSONDecodeError):
-                        continue
-                    if not isinstance(config, dict):
-                        continue
-                    trials = int(config.get("trials", 1) or 1)
-                    report = build_run_report(storage, str(run["run_id"]))
-                    candidates.extend(
-                        _public_profile_result(
-                            profile,
-                            run,
-                            trials,
-                            len(suite.scenarios),
-                        )
-                        for profile in report["profiles"]
-                    )
-                tracks.append(
-                    {
-                        "suite_id": suite.spec.id,
-                        "suite_hash": suite.suite_hash,
-                        "prompt_mode": prompt_mode,
-                        "entries": _select_latest_profiles(candidates),
-                    }
-                )
+        snapshots = _completed_run_snapshots(storage, suites)
     finally:
         storage.close()
-    atomic_write_json(output.resolve(), {"schema_version": SNAPSHOT_VERSION, "tracks": tracks})
+    candidates = _empty_candidates(suites)
+    suite_hashes = _current_suite_hashes(suites)
+    for snapshot in snapshots:
+        _add_run_snapshot_candidates(candidates, suite_hashes, snapshot)
+    atomic_write_json(
+        output.resolve(),
+        {"schema_version": SNAPSHOT_VERSION, "tracks": _build_tracks(suites, candidates)},
+    )
     return output.resolve()
 
 

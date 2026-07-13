@@ -129,9 +129,10 @@ uv run bbbench suite validate .\suites\ladder-v2.yaml
 # 查看排行榜
 uv run bbbench leaderboard ladder-v2 --format console
 
-# 导出公开排行榜数据并构建静态站点
-uv run bbbench site snapshot --database .\.bbbench\results.sqlite3
-uv run bbbench site build --output .\.bbbench\pages
+# 导出独立 Run 数据、聚合并构建静态站点
+uv run bbbench site export-runs --database .\.bbbench\results.sqlite3
+uv run bbbench site aggregate --output .\.bbbench\leaderboard-results.json
+uv run bbbench site build --snapshot .\.bbbench\leaderboard-results.json --output .\.bbbench\pages
 ```
 
 本地检查排行榜并预览构建结果：
@@ -153,6 +154,9 @@ bash scripts/publish-leaderboard.sh --local-only
 ```bash
 bash scripts/publish-leaderboard.sh
 ```
+
+发布时每个完成的 Run 会写入独立的 `leaderboard/runs/<run_id>.json`。不同机器发布的文件会在
+Git 同步后由 GitHub Actions 统一聚合，不会再用某一台机器的本地数据库覆盖整个排行榜。
 
 ## 开发与测试
 

@@ -3,7 +3,8 @@
 set -Eeuo pipefail
 
 database=".bbbench/results.sqlite3"
-snapshot="leaderboard/results.json"
+runs_dir="leaderboard/runs"
+snapshot=".bbbench/leaderboard-results.local.json"
 build_output=".bbbench/pages"
 remote="origin"
 branch="main"
@@ -11,7 +12,7 @@ commit_message=":chart_with_upwards_trend: update public leaderboard"
 local_only=false
 skip_build=false
 no_wait=false
-snapshot_explicit=false
+runs_dir_explicit=false
 
 usage() {
     cat <<'EOF'
@@ -19,7 +20,8 @@ Usage: scripts/publish-leaderboard.sh [options]
 
 Options:
   --database PATH          Results database (default: .bbbench/results.sqlite3)
-  --snapshot PATH          Public snapshot (default: leaderboard/results.json)
+  --runs-dir PATH          Per-run public data (default: leaderboard/runs)
+  --snapshot PATH          Aggregated local snapshot (default: .bbbench/leaderboard-results.local.json)
   --build-output PATH      Local site output (default: .bbbench/pages)
   --remote NAME            Git remote (default: origin)
   --branch NAME            Publish branch (default: main)
@@ -29,6 +31,41 @@ Options:
   --no-wait                Do not wait for GitHub Pages deployment
   -h, --help               Show this help
 EOF
+}
+
+sync_publish_branch() {
+    local remote_head=""
+
+    printf '同步远端发布分支...\n'
+    git fetch "$remote" "$branch"
+    remote_head=$(git rev-parse FETCH_HEAD)
+    if git merge-base --is-ancestor "$remote_head" HEAD; then
+        return
+    fi
+    if git merge-base --is-ancestor HEAD "$remote_head"; then
+        git merge --ff-only "$remote_head"
+        return
+    fi
+    printf '本地与远端都有新提交，正在 rebase 后合并各机器的 Run...\n'
+    git rebase --autostash "$remote_head" ||
+        die "无法自动合并远端提交；请解决 rebase 冲突后重新发布。"
+}
+
+push_with_rebase_retry() {
+    local remote_head=""
+
+    for attempt in 1 2 3; do
+        if git push "$remote" "HEAD:$branch"; then
+            return
+        fi
+        ((attempt < 3)) || break
+        printf '远端刚收到其他发布，重新合并后重试（%d/3）...\n' "$((attempt + 1))"
+        git fetch "$remote" "$branch"
+        remote_head=$(git rev-parse FETCH_HEAD)
+        git rebase --autostash "$remote_head" ||
+            die "无法自动合并另一台机器发布的 Run；请解决 rebase 冲突后重试。"
+    done
+    die "推送失败；已重试 3 次。"
 }
 
 die() {
@@ -120,7 +157,12 @@ while (($#)); do
         --snapshot)
             (($# >= 2)) || die "--snapshot 缺少参数"
             snapshot="$2"
-            snapshot_explicit=true
+            shift 2
+            ;;
+        --runs-dir)
+            (($# >= 2)) || die "--runs-dir 缺少参数"
+            runs_dir="$2"
+            runs_dir_explicit=true
             shift 2
             ;;
         --build-output)
@@ -170,8 +212,8 @@ assert_gitmoji_commit_message "$commit_message"
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 cd "$repo_root"
 
-if [[ "$local_only" == true && "$snapshot_explicit" == false ]]; then
-    snapshot=".bbbench/leaderboard-results.local.json"
+if [[ "$local_only" == true && "$runs_dir_explicit" == false ]]; then
+    runs_dir=".bbbench/leaderboard-runs.local"
 fi
 
 require_command uv
@@ -188,50 +230,60 @@ if [[ "$local_only" == false ]]; then
 
     for required_in_head in \
         ".github/workflows/pages.yml" \
+        "src/backpack_bench/cli.py" \
         "src/backpack_bench/static_site.py"; do
         git cat-file -e "HEAD:$required_in_head" 2>/dev/null ||
             die "'$required_in_head' 尚未提交。请先提交并推送排行榜基础功能，再用本脚本更新成绩。"
     done
+    git diff --quiet HEAD -- \
+        ".gitignore" \
+        ".github/workflows/pages.yml" \
+        "scripts/publish-leaderboard.sh" \
+        "scripts/publish-leaderboard.ps1" \
+        "src/backpack_bench/cli.py" \
+        "src/backpack_bench/static_site.py" ||
+        die "排行榜发布功能有未提交的修改。请先提交并推送这些代码，再发布成绩。"
 
+    sync_publish_branch
     ensure_pages_enabled
 fi
 
 [[ -f "$database" ]] || die "找不到结果数据库：$database"
 
-printf '[1/4] 导出公开排行榜快照\n'
-uv run --frozen bbbench site snapshot \
+printf '[1/5] 导出独立 Run 快照\n'
+uv run --frozen bbbench site export-runs \
     --workspace "$repo_root" \
     --database "$database" \
+    --output "$runs_dir"
+
+printf '[2/5] 聚合全部 Run\n'
+uv run --frozen bbbench site aggregate \
+    --workspace "$repo_root" \
+    --runs-dir "$runs_dir" \
+    --baseline "leaderboard/results.json" \
     --output "$snapshot"
 
 if [[ "$skip_build" == false ]]; then
-    printf '[2/4] 本地构建静态站点\n'
+    printf '[3/5] 本地构建静态站点\n'
     uv run --frozen bbbench site build \
         --workspace "$repo_root" \
         --snapshot "$snapshot" \
         --output "$build_output"
 else
-    printf '[2/4] 已跳过本地静态构建\n'
+    printf '[3/5] 已跳过本地静态构建\n'
 fi
 
 if [[ "$local_only" == true ]]; then
     printf '本地校验完成，未提交或推送任何内容。\n'
+    printf 'Run 快照：%s\n' "$runs_dir"
     printf '快照：%s\n' "$snapshot"
     [[ "$skip_build" == true ]] || printf '站点：%s\n' "$build_output"
     exit 0
 fi
 
-snapshot_tracked=false
-if git ls-files --error-unmatch -- "$snapshot" >/dev/null 2>&1; then
-    snapshot_tracked=true
-fi
-
-diff_exit_code=0
-git diff --quiet -- "$snapshot" || diff_exit_code=$?
-((diff_exit_code <= 1)) || die "无法检查排行榜快照差异：$snapshot"
-
-if [[ "$snapshot_tracked" == true && "$diff_exit_code" == 0 ]]; then
-    printf '排行榜快照没有变化，无需创建提交。\n'
+run_changes=$(git status --porcelain -- "$runs_dir")
+if [[ -z "$run_changes" ]]; then
+    printf '没有新的 Run 快照，无需创建提交。\n'
     if command -v gh >/dev/null 2>&1; then
         printf '触发一次 Pages 重新部署...\n'
         gh workflow run pages.yml --ref "$branch"
@@ -244,13 +296,13 @@ if [[ "$snapshot_tracked" == true && "$diff_exit_code" == 0 ]]; then
     exit 0
 fi
 
-printf '[3/4] 提交排行榜快照\n'
-git add -- "$snapshot"
+printf '[4/5] 提交独立 Run 快照\n'
+git add -- "$runs_dir"
 git commit -m "$commit_message"
-commit_sha=$(git rev-parse HEAD)
 
-printf '[4/4] 推送并触发 GitHub Pages\n'
-git push "$remote" "HEAD:$branch"
+printf '[5/5] 推送并触发 GitHub Pages\n'
+push_with_rebase_retry
+commit_sha=$(git rev-parse HEAD)
 
 if [[ "$no_wait" == false ]]; then
     wait_pages_deployment "$commit_sha"
