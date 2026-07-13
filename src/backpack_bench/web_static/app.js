@@ -938,15 +938,39 @@ function optionalNumber(selector, integer = false) {
   return integer ? Math.trunc(value) : value;
 }
 
+function parseExtraBodyField() {
+  const input = $("#api-extra-body");
+  const help = $("#api-extra-body-help");
+  const raw = input.value.trim();
+  let message = "";
+  let value;
+  if (raw) {
+    try {
+      value = JSON.parse(raw);
+      if (value === null || Array.isArray(value) || typeof value !== "object") {
+        message = "Extra Body 必须是 JSON 对象，不能是数组、null 或基础类型";
+      }
+    } catch (error) {
+      message = `Extra Body JSON 格式错误：${error.message}`;
+    }
+  }
+  input.setCustomValidity(message);
+  help.textContent = message || "合并到模型请求体；不能包含 model、messages、stream 或凭据。";
+  help.classList.toggle("is-error", Boolean(message));
+  return { valid: !message, value };
+}
+
 function collectApiProfile() {
   const protocol = $("#api-protocol").value;
   const params = { json_mode: $("#api-json-mode").checked };
   const temperature = optionalNumber("#api-temperature");
   const maxTokens = optionalNumber("#api-max-tokens", true);
   const thinkingEffort = $("#api-thinking-effort").value;
+  const extraBody = parseExtraBodyField();
   if (temperature !== undefined) params.temperature = temperature;
   if (maxTokens !== undefined) params.max_tokens = maxTokens;
   if (thinkingEffort) params.thinking_effort = thinkingEffort;
+  if (extraBody.valid && extraBody.value !== undefined) params.extra_body = extraBody.value;
   if (protocol === "anthropic_messages") {
     const thinkingMode = $("#api-thinking-mode").value;
     const thinkingBudget = optionalNumber("#api-thinking-budget", true);
@@ -987,7 +1011,7 @@ function browserProfileReady() {
   }
   const authMode = profile.auth_mode || (profile.protocol === "openai_chat" ? "bearer" : "x-api-key");
   if (authMode !== "none" && !profile.api_key) return false;
-  return Array.from(document.querySelectorAll("#api-profile-fields input"))
+  return Array.from(document.querySelectorAll("#api-profile-fields input, #api-profile-fields textarea"))
     .every((input) => (
       profile.protocol === "openai_chat" && input.id === "api-thinking-budget"
         ? true
@@ -1050,6 +1074,7 @@ function resetApiForm() {
   $("#api-thinking-mode").value = "";
   $("#api-thinking-budget").value = "";
   $("#api-max-tokens").value = "";
+  $("#api-extra-body").value = "";
   $("#api-temperature").value = "";
   $("#api-timeout").value = "1800";
   $("#api-concurrency").value = "10";
@@ -1058,6 +1083,7 @@ function resetApiForm() {
   $("#api-verify-tls").checked = true;
   $("#api-json-mode").checked = true;
   $("#remember-api-key").checked = true;
+  parseExtraBodyField();
   syncProtocolFields();
 }
 
@@ -1079,6 +1105,9 @@ function applyApiHistoryRecord(record) {
   $("#api-thinking-mode").value = params.thinking_mode || "";
   $("#api-thinking-budget").value = params.thinking_budget || "";
   $("#api-max-tokens").value = params.max_tokens || "";
+  $("#api-extra-body").value = Object.prototype.hasOwnProperty.call(params, "extra_body")
+    ? JSON.stringify(params.extra_body, null, 2)
+    : "";
   $("#api-temperature").value = params.temperature ?? "";
   $("#api-timeout").value = limits.timeout_seconds ?? 1800;
   $("#api-concurrency").value = limits.concurrency ?? 10;
@@ -1087,6 +1116,7 @@ function applyApiHistoryRecord(record) {
   $("#api-verify-tls").checked = profile.verify_tls !== false;
   $("#api-json-mode").checked = params.json_mode !== false;
   $("#remember-api-key").checked = record.remember_key !== false;
+  parseExtraBodyField();
   syncProtocolFields();
 }
 
@@ -1107,6 +1137,11 @@ function makeHistoryId() {
 
 function saveCurrentApiHistory() {
   const profile = collectApiProfile();
+  const extraBodyInput = $("#api-extra-body");
+  if (!extraBodyInput.checkValidity()) {
+    setApiSaveState(extraBodyInput.validationMessage, "error");
+    return null;
+  }
   if (!profile.base_url || !profile.model) {
     setApiSaveState("填写 URL 和模型名后自动保存");
     return null;
@@ -1278,7 +1313,9 @@ function renderRunPreview() {
     setRunNotice(
       ready
         ? `前端 API：${model} · ${endpoint} · ${limitNotes.join(" · ")}`
-        : "请填写有效的 API URL、模型名和 API Key",
+        : $("#api-extra-body").checkValidity()
+          ? "请填写有效的 API URL、模型名和 API Key"
+          : $("#api-extra-body").validationMessage,
       !ready,
     );
   } else {

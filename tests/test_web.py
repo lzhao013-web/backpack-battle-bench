@@ -237,6 +237,7 @@ def test_web_scenario_lab_uses_real_validator() -> None:
             assert 'id="text-prompt-panel"' in root.text
             assert "查看发送给模型的完整提示词" not in root.text
             assert '<input id="api-json-mode" type="checkbox" checked>' in root.text
+            assert 'id="api-extra-body"' in root.text
             script = (await client.get("/assets/app.js")).text
             styles = await client.get("/assets/styles.css")
             assert styles.status_code == 200
@@ -256,6 +257,8 @@ def test_web_scenario_lab_uses_real_validator() -> None:
             assert "单次请求总超时（秒）" in root.text
             assert "API_HISTORY_STORAGE_KEY" in script
             assert "saveCurrentApiHistory" in script
+            assert "function parseExtraBodyField" in script
+            assert "params.extra_body = extraBody.value" in script
             assert "受 run.yaml 全局并发" in script
             assert "async function stopRun" in script
             assert '$("#stop-run").addEventListener("click", stopRun)' in script
@@ -861,7 +864,12 @@ def test_web_runtime_api_profile_uses_ephemeral_key(
                         "base_url": "https://runtime.test/v1",
                         "model": "runtime-reasoner",
                         "api_key": secret,
-                        "params": {"thinking_effort": "xhigh"},
+                        "params": {
+                            "thinking_effort": "xhigh",
+                            "extra_body": {
+                                "chat_template_kwargs": {"enable_thinking": True}
+                            },
+                        },
                         "limits": {"concurrency": 2, "retries": 0},
                     }
                 },
@@ -892,6 +900,10 @@ def test_web_runtime_api_profile_uses_ephemeral_key(
     )
     assert all(
         request["json"]["reasoning_effort"] == "xhigh" for request in WebFakeAsyncClient.requests
+    )
+    assert all(
+        request["json"]["chat_template_kwargs"] == {"enable_thinking": True}
+        for request in WebFakeAsyncClient.requests
     )
     assert all("max_tokens" not in request["json"] for request in WebFakeAsyncClient.requests)
     for path in (tmp_path / "data").rglob("*"):

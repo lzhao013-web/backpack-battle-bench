@@ -258,6 +258,19 @@
                 <span>重试次数</span>
                 <input id="api-retries" type="number" min="0" max="10" step="1" value="3">
               </label>
+              <label class="api-extra-body-field">
+                <span>Extra Body（JSON 对象）</span>
+                <textarea
+                  id="api-extra-body"
+                  rows="5"
+                  spellcheck="false"
+                  aria-describedby="api-extra-body-help"
+                  placeholder='{"chat_template_kwargs":{"enable_thinking":true}}'
+                ></textarea>
+                <small id="api-extra-body-help" class="api-field-help">
+                  合并到模型请求体；不能包含 model、messages、stream 或凭据。
+                </small>
+              </label>
             </div>
           </details>
 

@@ -36,8 +36,8 @@ body {
   line-height: 1.5;
 }
 
-button, input, select { font: inherit; }
-button, input, select, summary { outline-offset: 3px; }
+button, input, select, textarea { font: inherit; }
+button, input, select, textarea, summary { outline-offset: 3px; }
 
 .app-header {
   display: flex;
@@ -110,7 +110,7 @@ label > span, .orientation-control > label {
   font-size: 12px;
   font-weight: 650;
 }
-input, select {
+input, select, textarea {
   min-height: 40px;
   padding: 0 11px;
   border: 1px solid var(--border);
@@ -119,8 +119,9 @@ input, select {
   color: var(--text);
 }
 select { padding-right: 36px; }
-input:focus, select:focus { border-color: var(--primary); }
-input::placeholder { color: color-mix(in srgb, var(--muted) 72%, transparent); }
+textarea { padding-block: 9px; resize: vertical; }
+input:focus, select:focus, textarea:focus { border-color: var(--primary); }
+input::placeholder, textarea::placeholder { color: color-mix(in srgb, var(--muted) 72%, transparent); }
 .scenario-field { flex: 1; max-width: 480px; }
 .scenario-field select, .run-toolbar label, .run-toolbar select { width: 100%; }
 .run-toolbar label { max-width: 520px; flex: 1; }
@@ -368,7 +369,7 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 72%, transparent); }
 .api-profile-fields:disabled { opacity: .52; }
 .api-form-grid { display: grid; grid-template-columns: repeat(5, minmax(140px, 1fr)); gap: 12px; }
 .api-form-grid label { min-width: 0; }
-.api-form-grid input, .api-form-grid select { width: 100%; }
+.api-form-grid input, .api-form-grid select, .api-form-grid textarea { width: 100%; }
 .api-url-field, .api-key-field { grid-column: span 2; }
 .password-input { position: relative; display: block; }
 .password-input input { padding-right: 58px; }
@@ -388,6 +389,15 @@ input::placeholder { color: color-mix(in srgb, var(--muted) 72%, transparent); }
 .api-advanced { margin-top: 14px; border-top: 1px dashed var(--border); }
 .api-advanced summary { width: max-content; padding: 12px 0 2px; color: var(--primary); cursor: pointer; font-size: 12px; font-weight: 650; }
 .api-advanced-grid { grid-template-columns: repeat(6, minmax(120px, 1fr)); padding-top: 10px; }
+.api-extra-body-field { grid-column: 1 / -1; }
+.api-extra-body-field textarea {
+  min-height: 112px;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 12px;
+}
+.api-extra-body-field textarea:invalid { border-color: var(--danger); }
+.api-field-help { display: block; margin-top: 5px; color: var(--muted); font-size: 10px; }
+.api-field-help.is-error { color: var(--danger); }
 .api-options { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; margin-top: 14px; color: var(--muted); font-size: 11px; }
 .api-options label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
 .api-options input { width: 15px; min-height: 15px; margin: 0; }
