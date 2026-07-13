@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, TextIO
 
 import httpx
 from rich.console import Console
@@ -101,6 +101,7 @@ class AttemptOutcome:
     validation: dict[str, Any] | None
     latency_ms: float
     retry_after: float | None
+    response_path: Path | None = None
 
 
 def _attempt_failure(outcome: AttemptOutcome) -> tuple[str | None, str | None]:
@@ -165,6 +166,69 @@ def _estimate_output_tokens(value: str) -> int:
         is_word = part[0].isascii() and (part[0].isalnum() or part[0] == "_")
         total += math.ceil(len(part) / 4) if is_word else 1
     return total
+
+
+class _IncrementalTokenEstimator:
+    """Match ``_estimate_output_tokens`` without rescanning prior stream chunks."""
+
+    def __init__(self) -> None:
+        self._completed = 0
+        self._ascii_word_length = 0
+
+    def add(self, value: str) -> int:
+        for character in value:
+            if character.isascii() and (character.isalnum() or character == "_"):
+                self._ascii_word_length += 1
+                continue
+            self._flush_ascii_word()
+            if not character.isspace():
+                self._completed += 1
+        return self.count
+
+    @property
+    def count(self) -> int:
+        return self._completed + math.ceil(self._ascii_word_length / 4)
+
+    def _flush_ascii_word(self) -> None:
+        if self._ascii_word_length:
+            self._completed += math.ceil(self._ascii_word_length / 4)
+            self._ascii_word_length = 0
+
+
+class _StreamResponseRecorder:
+    """Spool a redacted SSE transcript to disk while it is being consumed."""
+
+    def __init__(self, path: Path, api_key: str | None) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        self.path = path
+        self.api_key = api_key
+        self.file: TextIO | None = path.open("w", encoding="utf-8", newline="\n")
+        self.has_lines = False
+        self.detached = False
+
+    def write_line(self, line: str) -> None:
+        if self.file is None:
+            raise RuntimeError("stream response recorder is closed")
+        if self.has_lines:
+            self.file.write("\n")
+        safe_line = redact_secret_values(line, self.api_key)
+        self.file.write(str(safe_line))
+        self.has_lines = True
+
+    def detach(self) -> Path:
+        if self.file is not None:
+            self.file.flush()
+            self.file.close()
+            self.file = None
+        self.detached = True
+        return self.path
+
+    def cleanup(self) -> None:
+        if self.file is not None:
+            self.file.close()
+            self.file = None
+        if not self.detached:
+            self.path.unlink(missing_ok=True)
 
 
 def _merge_usage(target: dict[str, Any], update: dict[str, Any]) -> None:
@@ -377,6 +441,7 @@ async def _call_once(
     api_key: str | None,
     registry: PluginRegistry,
     token_progress: TokenProgressCallback,
+    raw_response_path: Path,
 ) -> AttemptOutcome:
     adapter = adapter_for(job.profile)
     endpoint = adapter.endpoint(job.profile)
@@ -386,7 +451,7 @@ async def _call_once(
     started = time.perf_counter()
     http_status: int | None = None
     retry_after: float | None = None
-    raw_lines: list[str] = []
+    raw_response: _StreamResponseRecorder | None = None
     try:
         async with client.stream("POST", endpoint, headers=headers, json=body) as response:
             http_status = response.status_code
@@ -469,8 +534,11 @@ async def _call_once(
                     retry_after=None,
                 )
 
+            raw_response = _StreamResponseRecorder(raw_response_path, api_key)
             content_parts: list[str] = []
             reasoning_parts: list[str] = []
+            content_estimator = _IncrementalTokenEstimator()
+            reasoning_estimator = _IncrementalTokenEstimator()
             usage: dict[str, Any] = {}
             finish_reason: str | None = None
             response_id: str | None = None
@@ -486,7 +554,7 @@ async def _call_once(
                     stream_peak_estimated = estimated
 
             async for line in response.aiter_lines():
-                raw_lines.append(line)
+                raw_response.write_line(line)
                 data = line.strip()
                 if not data or data.startswith((":", "event:", "id:", "retry:")):
                     continue
@@ -503,11 +571,12 @@ async def _call_once(
                         error_message=f"invalid JSON in stream event: {error}",
                         http_status=response.status_code,
                         response_json=None,
-                        response_text="\n".join(raw_lines),
+                        response_text=None,
                         completion=None,
                         validation=None,
                         latency_ms=(time.perf_counter() - started) * 1000,
                         retry_after=None,
+                        response_path=raw_response.detach(),
                     )
                 parsed_events += 1
                 try:
@@ -522,11 +591,12 @@ async def _call_once(
                             error_message=str(error),
                             http_status=response.status_code,
                             response_json=None,
-                            response_text="\n".join(raw_lines),
+                            response_text=None,
                             completion=None,
                             validation=None,
                             latency_ms=(time.perf_counter() - started) * 1000,
                             retry_after=None,
+                            response_path=raw_response.detach(),
                         )
                     content_parts.append(parsed.content_delta)
                     reasoning_parts.append(parsed.reasoning_delta)
@@ -535,9 +605,9 @@ async def _call_once(
                     if parsed.response_id is not None:
                         response_id = parsed.response_id
                     _merge_usage(usage, parsed.usage)
-                    estimated_count = _estimate_output_tokens(
-                        "".join(reasoning_parts) + "".join(content_parts)
-                    )
+                    reasoning_count = reasoning_estimator.add(parsed.reasoning_delta)
+                    content_count = content_estimator.add(parsed.content_delta)
+                    estimated_count = reasoning_count + content_count
                     event_reported = _reported_output_tokens(parsed.usage)
                     event_count = max(event_reported or 0, estimated_count)
                     event_estimated = event_reported is None or estimated_count > event_reported
@@ -574,11 +644,12 @@ async def _call_once(
                         error_message="successful response contained no stream events",
                         http_status=response.status_code,
                         response_json=None,
-                        response_text="\n".join(raw_lines),
+                        response_text=None,
                         completion=None,
                         validation=None,
                         latency_ms=(time.perf_counter() - started) * 1000,
                         retry_after=None,
+                        response_path=raw_response.detach(),
                     )
                 if not content and finish_reason != "length":
                     return AttemptOutcome(
@@ -587,14 +658,13 @@ async def _call_once(
                         error_message="stream produced no final text content",
                         http_status=response.status_code,
                         response_json=None,
-                        response_text="\n".join(raw_lines),
+                        response_text=None,
                         completion=None,
                         validation=None,
                         latency_ms=(time.perf_counter() - started) * 1000,
                         retry_after=None,
+                        response_path=raw_response.detach(),
                     )
-                estimated_count = _estimate_output_tokens(reasoning + content)
-                observe_stream_count(estimated_count, True)
                 completion = ParsedCompletion(
                     content=content,
                     reasoning=reasoning or None,
@@ -631,11 +701,12 @@ async def _call_once(
                 error_message=None,
                 http_status=response.status_code,
                 response_json=None,
-                response_text="\n".join(raw_lines),
+                response_text=None,
                 completion=completion,
                 validation=validation,
                 latency_ms=(time.perf_counter() - started) * 1000,
                 retry_after=None,
+                response_path=raw_response.detach(),
             )
     except httpx.HTTPError as error:
         return AttemptOutcome(
@@ -644,12 +715,16 @@ async def _call_once(
             error_message=str(error),
             http_status=http_status,
             response_json=None,
-            response_text="\n".join(raw_lines) or None,
+            response_text=None,
             completion=None,
             validation=None,
             latency_ms=(time.perf_counter() - started) * 1000,
             retry_after=retry_after,
+            response_path=raw_response.detach() if raw_response is not None else None,
         )
+    finally:
+        if raw_response is not None:
+            raw_response.cleanup()
 
 
 async def _call_once_with_total_timeout(
@@ -658,6 +733,7 @@ async def _call_once_with_total_timeout(
     api_key: str | None,
     registry: PluginRegistry,
     token_progress: TokenProgressCallback,
+    raw_response_path: Path,
 ) -> AttemptOutcome:
     """Enforce a wall-clock request deadline in addition to HTTP inactivity timeouts."""
     timeout_seconds = job.profile.limits.timeout_seconds
@@ -670,6 +746,7 @@ async def _call_once_with_total_timeout(
                 api_key,
                 registry,
                 token_progress,
+                raw_response_path,
             )
     except TimeoutError:
         return AttemptOutcome(
@@ -762,6 +839,8 @@ def _attempt_artifact(
         atomic_write_json(
             path / "response.json", redact_secret_values(outcome.response_json, api_key)
         )
+    elif outcome.response_path is not None:
+        outcome.response_path.replace(path / "response.txt")
     elif outcome.response_text is not None:
         atomic_write_text(
             path / "response.txt", redact_secret_values(outcome.response_text, api_key)
@@ -834,17 +913,25 @@ async def _execute_job(
             attempt_no = first_attempt + offset
             await limiter.wait()
             started_at = utc_now()
+            raw_response_path = (
+                plan.artifacts / job.run_id / f".{job.job_id}.attempt_{attempt_no:03d}.response.tmp"
+            )
+            raw_response_path.unlink(missing_ok=True)
             outcome = await _call_once_with_total_timeout(
                 job,
                 client,
                 api_key,
                 plan.registry,
                 token_reporter.report,
+                raw_response_path,
             )
             completed_at = utc_now()
             error_type, error_message = _attempt_failure(outcome)
             _print_attempt_failure(job, attempt_no, outcome, api_key)
-            artifact_dir = _attempt_artifact(plan, job, attempt_no, outcome, api_key)
+            try:
+                artifact_dir = _attempt_artifact(plan, job, attempt_no, outcome, api_key)
+            finally:
+                raw_response_path.unlink(missing_ok=True)
             final_artifact_dir = artifact_dir
             usage = outcome.completion.usage if outcome.completion else {}
             safe_usage = redact_secret_values(usage, api_key)

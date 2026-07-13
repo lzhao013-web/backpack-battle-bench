@@ -10,6 +10,7 @@ import httpx
 import pytest
 from pydantic import HttpUrl
 
+import backpack_bench.runner as runner
 from backpack_bench.io import atomic_write_yaml
 from backpack_bench.plugins import PluginRegistry
 from backpack_bench.providers import adapter_for
@@ -25,6 +26,113 @@ from backpack_bench.schemas import (
 from backpack_bench.storage import Storage
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_incremental_token_estimator_matches_whole_text_across_chunks() -> None:
+    chunks = ["alpha", "bet", "_12", " ", "中", "文", "!", "\n", "tail", "word"]
+    estimator = runner._IncrementalTokenEstimator()
+    combined = ""
+    for chunk in chunks:
+        combined += chunk
+        assert estimator.add(chunk) == runner._estimate_output_tokens(combined)
+
+
+def test_long_sse_stream_is_incremental_and_spooled(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    plan = resolve_plan(
+        ROOT / "configs" / "run.example.yaml",
+        PluginRegistry(load_external=False),
+    )
+    job = build_jobs(plan, "long-stream-test")[0]
+    assert job.scenario.oracle.witness is not None
+    answer = json.dumps(job.scenario.oracle.witness.model_dump(mode="json"), ensure_ascii=False)
+    secret = "stream-secret-that-must-be-redacted"
+    reasoning_chunks = [secret, *("x" for _ in range(3000))]
+    content_chunks = list(answer)
+    events = [
+        {
+            "id": "long-stream",
+            "choices": [{"delta": {"reasoning_content": chunk}, "finish_reason": None}],
+        }
+        for chunk in reasoning_chunks
+    ]
+    events.extend(
+        {
+            "id": "long-stream",
+            "choices": [{"delta": {"content": chunk}, "finish_reason": None}],
+        }
+        for chunk in content_chunks
+    )
+    events.extend(
+        [
+            {
+                "id": "long-stream",
+                "choices": [{"delta": {}, "finish_reason": "stop"}],
+            },
+            {
+                "id": "long-stream",
+                "choices": [],
+                "usage": {"prompt_tokens": 10, "completion_tokens": 900},
+            },
+        ]
+    )
+    body = "\n\n".join(f"data: {json.dumps(event)}" for event in events)
+    body += "\n\ndata: [DONE]\n\n"
+
+    class ChunkedAsyncClient:
+        @asynccontextmanager
+        async def stream(
+            self,
+            method: str,
+            url: str,
+            headers: dict[str, str],
+            json: dict[str, Any],
+        ) -> AsyncIterator[httpx.Response]:
+            yield httpx.Response(
+                200,
+                content=body,
+                headers={"Content-Type": "text/event-stream"},
+                request=httpx.Request(method, url),
+            )
+
+    full_scan_lengths: list[int] = []
+    original_estimate = runner._estimate_output_tokens
+
+    def count_full_scan(value: str) -> int:
+        full_scan_lengths.append(len(value))
+        return original_estimate(value)
+
+    monkeypatch.setattr(runner, "_estimate_output_tokens", count_full_scan)
+    progress: list[int] = []
+
+    async def record_progress(count: int, _estimated: bool, _force: bool) -> None:
+        progress.append(count)
+
+    raw_path = tmp_path / "long-stream.response.tmp"
+    outcome = asyncio.run(
+        runner._call_once(
+            job,
+            ChunkedAsyncClient(),  # type: ignore[arg-type]
+            secret,
+            plan.registry,
+            record_progress,
+            raw_path,
+        )
+    )
+    assert outcome.error_type is None
+    assert outcome.completion is not None
+    assert outcome.completion.content == answer
+    assert outcome.response_text is None
+    assert outcome.response_path == raw_path
+    assert raw_path.stat().st_size > len(reasoning_chunks)
+    raw_text = raw_path.read_text(encoding="utf-8")
+    assert secret not in raw_text
+    assert "***REDACTED***" in raw_text
+    assert len(full_scan_lengths) == 1
+    assert full_scan_lengths[0] == len("".join(reasoning_chunks) + answer)
+    assert progress == sorted(progress)
+    raw_path.unlink()
 
 
 def test_visual_run_builds_image_backed_jobs() -> None:
@@ -383,6 +491,7 @@ def test_6_job_matrix_retry_and_resume(
     assert test_key not in artifact_text
     assert test_key.encode() not in plan.database.read_bytes()
     assert list((tmp_path / "artifacts").rglob("response.txt"))
+    assert not list((tmp_path / "artifacts").rglob("*.response.tmp"))
     assert (plan.reports / result["run_id"] / "report.json").is_file()
     assert (plan.reports / result["run_id"] / "report.csv").is_file()
     html_path = plan.reports / result["run_id"] / "report.html"

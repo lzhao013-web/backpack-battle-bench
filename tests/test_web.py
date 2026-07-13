@@ -976,5 +976,9 @@ def test_web_runtime_timeout_is_a_total_stream_deadline(
             summary = json.loads(summary_path.read_text(encoding="utf-8"))
             assert summary["error_type"] == "api_timeout"
             assert "total timeout of 0.05 seconds" in summary["error_message"]
+            run_artifacts = tmp_path / "data" / "artifacts" / run_id
+            assert not [
+                path for path in run_artifacts.iterdir() if path.name.endswith(".response.tmp")
+            ]
 
     asyncio.run(exercise())
