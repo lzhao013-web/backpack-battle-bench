@@ -1,0 +1,157 @@
+{
+  "entries": [
+    {
+      "attack_best": 18,
+      "attack_mean": 6.0,
+      "attack_stddev": 8.48528137423857,
+      "attack_worst": 0,
+      "best_of_3_score": 100.0,
+      "cached_tokens": 0,
+      "completed_at": "2026-07-24T04:18:53.244445+00:00",
+      "display_name": "ant-ling",
+      "eligibility_reasons": [],
+      "eligible": true,
+      "error_counts": {
+        "api_schema": 2,
+        "success": 1
+      },
+      "estimated_cost": null,
+      "groups": {
+        "difficulty": [
+          {
+            "attack_best": 18,
+            "attack_mean": 6.0,
+            "attack_stddev": 8.48528137423857,
+            "attack_worst": 0,
+            "best_of_3_score": 100.0,
+            "cached_tokens": 0,
+            "error_counts": {
+              "api_schema": 2,
+              "success": 1
+            },
+            "estimated_cost": null,
+            "group_value": "easy",
+            "input_tokens": 569,
+            "jobs": 3,
+            "latency_p50_ms": 10750.199008034542,
+            "latency_p95_ms": 12513.707308168523,
+            "optimal_hit_rate": 0.3333333333333333,
+            "output_tokens": 677,
+            "overall_score": 33.33333333333333,
+            "reasoning_tokens": 0,
+            "retry_rate": 0.0,
+            "scenarios": 1,
+            "truncation_rate": 0.0,
+            "valid_rate": 0.3333333333333333
+          }
+        ],
+        "tag": [
+          {
+            "attack_best": 18,
+            "attack_mean": 6.0,
+            "attack_stddev": 8.48528137423857,
+            "attack_worst": 0,
+            "best_of_3_score": 100.0,
+            "cached_tokens": 0,
+            "error_counts": {
+              "api_schema": 2,
+              "success": 1
+            },
+            "estimated_cost": null,
+            "group_value": "curated",
+            "input_tokens": 569,
+            "jobs": 3,
+            "latency_p50_ms": 10750.199008034542,
+            "latency_p95_ms": 12513.707308168523,
+            "optimal_hit_rate": 0.3333333333333333,
+            "output_tokens": 677,
+            "overall_score": 33.33333333333333,
+            "reasoning_tokens": 0,
+            "retry_rate": 0.0,
+            "scenarios": 1,
+            "truncation_rate": 0.0,
+            "valid_rate": 0.3333333333333333
+          },
+          {
+            "attack_best": 18,
+            "attack_mean": 6.0,
+            "attack_stddev": 8.48528137423857,
+            "attack_worst": 0,
+            "best_of_3_score": 100.0,
+            "cached_tokens": 0,
+            "error_counts": {
+              "api_schema": 2,
+              "success": 1
+            },
+            "estimated_cost": null,
+            "group_value": "packing",
+            "input_tokens": 569,
+            "jobs": 3,
+            "latency_p50_ms": 10750.199008034542,
+            "latency_p95_ms": 12513.707308168523,
+            "optimal_hit_rate": 0.3333333333333333,
+            "output_tokens": 677,
+            "overall_score": 33.33333333333333,
+            "reasoning_tokens": 0,
+            "retry_rate": 0.0,
+            "scenarios": 1,
+            "truncation_rate": 0.0,
+            "valid_rate": 0.3333333333333333
+          }
+        ]
+      },
+      "input_tokens": 569,
+      "jobs": 3,
+      "latency_p50_ms": 10750.199008034542,
+      "latency_p95_ms": 12513.707308168523,
+      "model": "Ling-3.0-flash",
+      "optimal_hit_rate": 0.3333333333333333,
+      "output_tokens": 677,
+      "overall_score": 33.33333333333333,
+      "plan_id": "smoke-example",
+      "profile_hash": "a226936db5e4ada7b4ede3daa8d41dcf5f27b1b9f8a1fc1c89730afcc435e8e6",
+      "profile_id": "web-a226936db5e4",
+      "protocol": "openai_chat",
+      "reasoning_tokens": 0,
+      "retry_rate": 0.0,
+      "run_id": "20260724T041839Z_d31f7727a9_03682e",
+      "scenario_results": [
+        {
+          "attack_best": 18,
+          "attack_mean": 6.0,
+          "attack_stddev": 8.48528137423857,
+          "attack_worst": 0,
+          "difficulty": "easy",
+          "error_counts": {
+            "api_schema": 2,
+            "success": 1
+          },
+          "optimal_hit_rate": 0.3333333333333333,
+          "oracle_attack": 18,
+          "ratio_best_of_3": 1.0,
+          "ratio_mean": 0.3333333333333333,
+          "scenario_id": "packing-3x3",
+          "tags": [
+            "curated",
+            "packing"
+          ],
+          "title": "3×3 纯装填取舍题",
+          "trials": 3,
+          "valid_rate": 0.3333333333333333,
+          "weight": 1.0
+        }
+      ],
+      "scenarios": 1,
+      "started_at": "2026-07-24T04:18:39.499991+00:00",
+      "thinking_effort": "default",
+      "trials": 3,
+      "truncation_rate": 0.0,
+      "valid_rate": 0.3333333333333333
+    }
+  ],
+  "prompt_mode": "text",
+  "run_id": "20260724T041839Z_d31f7727a9_03682e",
+  "schema_version": 1,
+  "suite_hash": "294ab4ca73139e74ca7d97c94fdb4f661776689edf6f739662e9a07d828752ad",
+  "suite_id": "smoke-v1"
+}
