@@ -1,0 +1,157 @@
+{
+  "entries": [
+    {
+      "attack_best": 18,
+      "attack_mean": 12.0,
+      "attack_stddev": 8.48528137423857,
+      "attack_worst": 0,
+      "best_of_3_score": 100.0,
+      "cached_tokens": 342,
+      "completed_at": "2026-07-12T06:52:33.346213+00:00",
+      "display_name": "opencode-go",
+      "eligibility_reasons": [],
+      "eligible": true,
+      "error_counts": {
+        "output_not_json": 1,
+        "success": 2
+      },
+      "estimated_cost": null,
+      "groups": {
+        "difficulty": [
+          {
+            "attack_best": 18,
+            "attack_mean": 12.0,
+            "attack_stddev": 8.48528137423857,
+            "attack_worst": 0,
+            "best_of_3_score": 100.0,
+            "cached_tokens": 342,
+            "error_counts": {
+              "output_not_json": 1,
+              "success": 2
+            },
+            "estimated_cost": null,
+            "group_value": "easy",
+            "input_tokens": 1734,
+            "jobs": 3,
+            "latency_p50_ms": 24161.563200003002,
+            "latency_p95_ms": 26103.907920001075,
+            "optimal_hit_rate": 0.6666666666666666,
+            "output_tokens": 8777,
+            "overall_score": 66.66666666666666,
+            "reasoning_tokens": 0,
+            "retry_rate": 0.0,
+            "scenarios": 1,
+            "truncation_rate": 0.0,
+            "valid_rate": 0.6666666666666666
+          }
+        ],
+        "tag": [
+          {
+            "attack_best": 18,
+            "attack_mean": 12.0,
+            "attack_stddev": 8.48528137423857,
+            "attack_worst": 0,
+            "best_of_3_score": 100.0,
+            "cached_tokens": 342,
+            "error_counts": {
+              "output_not_json": 1,
+              "success": 2
+            },
+            "estimated_cost": null,
+            "group_value": "curated",
+            "input_tokens": 1734,
+            "jobs": 3,
+            "latency_p50_ms": 24161.563200003002,
+            "latency_p95_ms": 26103.907920001075,
+            "optimal_hit_rate": 0.6666666666666666,
+            "output_tokens": 8777,
+            "overall_score": 66.66666666666666,
+            "reasoning_tokens": 0,
+            "retry_rate": 0.0,
+            "scenarios": 1,
+            "truncation_rate": 0.0,
+            "valid_rate": 0.6666666666666666
+          },
+          {
+            "attack_best": 18,
+            "attack_mean": 12.0,
+            "attack_stddev": 8.48528137423857,
+            "attack_worst": 0,
+            "best_of_3_score": 100.0,
+            "cached_tokens": 342,
+            "error_counts": {
+              "output_not_json": 1,
+              "success": 2
+            },
+            "estimated_cost": null,
+            "group_value": "packing",
+            "input_tokens": 1734,
+            "jobs": 3,
+            "latency_p50_ms": 24161.563200003002,
+            "latency_p95_ms": 26103.907920001075,
+            "optimal_hit_rate": 0.6666666666666666,
+            "output_tokens": 8777,
+            "overall_score": 66.66666666666666,
+            "reasoning_tokens": 0,
+            "retry_rate": 0.0,
+            "scenarios": 1,
+            "truncation_rate": 0.0,
+            "valid_rate": 0.6666666666666666
+          }
+        ]
+      },
+      "input_tokens": 1734,
+      "jobs": 3,
+      "latency_p50_ms": 24161.563200003002,
+      "latency_p95_ms": 26103.907920001075,
+      "model": "minimax-m3",
+      "optimal_hit_rate": 0.6666666666666666,
+      "output_tokens": 8777,
+      "overall_score": 66.66666666666666,
+      "plan_id": "smoke-example",
+      "profile_hash": "16a71dcbb3d645fd7e46c19dad737ba69644033283b58eb1382631b6c7ff818b",
+      "profile_id": "web-16a71dcbb3d6",
+      "protocol": "anthropic_messages",
+      "reasoning_tokens": 0,
+      "retry_rate": 0.0,
+      "run_id": "20260712T065205Z_86ef7eb47a_52f687",
+      "scenario_results": [
+        {
+          "attack_best": 18,
+          "attack_mean": 12.0,
+          "attack_stddev": 8.48528137423857,
+          "attack_worst": 0,
+          "difficulty": "easy",
+          "error_counts": {
+            "output_not_json": 1,
+            "success": 2
+          },
+          "optimal_hit_rate": 0.6666666666666666,
+          "oracle_attack": 18,
+          "ratio_best_of_3": 1.0,
+          "ratio_mean": 0.6666666666666666,
+          "scenario_id": "packing-3x3",
+          "tags": [
+            "curated",
+            "packing"
+          ],
+          "title": "3×3 纯装填取舍题",
+          "trials": 3,
+          "valid_rate": 0.6666666666666666,
+          "weight": 1.0
+        }
+      ],
+      "scenarios": 1,
+      "started_at": "2026-07-12T06:52:05.943920+00:00",
+      "thinking_effort": "xhigh",
+      "trials": 3,
+      "truncation_rate": 0.0,
+      "valid_rate": 0.6666666666666666
+    }
+  ],
+  "prompt_mode": "text",
+  "run_id": "20260712T065205Z_86ef7eb47a_52f687",
+  "schema_version": 1,
+  "suite_hash": "294ab4ca73139e74ca7d97c94fdb4f661776689edf6f739662e9a07d828752ad",
+  "suite_id": "smoke-v1"
+}
