@@ -962,7 +962,10 @@ function parseExtraBodyField() {
 
 function collectApiProfile() {
   const protocol = $("#api-protocol").value;
-  const params = { json_mode: $("#api-json-mode").checked };
+  const params = {
+    json_mode: $("#api-json-mode").checked,
+    stream: $("#api-stream").checked,
+  };
   const temperature = optionalNumber("#api-temperature");
   const maxTokens = optionalNumber("#api-max-tokens", true);
   const thinkingEffort = $("#api-thinking-effort").value;
@@ -1115,6 +1118,7 @@ function applyApiHistoryRecord(record) {
   $("#api-retries").value = limits.retries ?? 3;
   $("#api-verify-tls").checked = profile.verify_tls !== false;
   $("#api-json-mode").checked = params.json_mode !== false;
+  $("#api-stream").checked = params.stream !== false;
   $("#remember-api-key").checked = record.remember_key !== false;
   parseExtraBodyField();
   syncProtocolFields();

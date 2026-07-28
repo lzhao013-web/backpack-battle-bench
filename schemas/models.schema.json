@@ -245,6 +245,11 @@
           "default": null,
           "title": "Seed"
         },
+        "stream": {
+          "default": true,
+          "title": "Stream",
+          "type": "boolean"
+        },
         "temperature": {
           "anyOf": [
             {

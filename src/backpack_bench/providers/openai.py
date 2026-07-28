@@ -22,7 +22,7 @@ class OpenAIChatAdapter:
     def headers(self, profile: ModelProfile, api_key: str | None) -> dict[str, str]:
         headers = {
             "Content-Type": "application/json",
-            "Accept": "text/event-stream",
+            "Accept": "text/event-stream" if profile.params.stream else "application/json",
             **profile.extra_headers,
         }
         auth_mode = effective_auth_mode(profile)
@@ -60,12 +60,13 @@ class OpenAIChatAdapter:
         if params.json_mode:
             body["response_format"] = {"type": "json_object"}
         body.update(params.extra_body)
-        body["stream"] = True
-        stream_options = body.get("stream_options")
-        body["stream_options"] = {
-            "include_usage": True,
-            **(stream_options if isinstance(stream_options, dict) else {}),
-        }
+        body["stream"] = params.stream
+        if params.stream:
+            stream_options = body.get("stream_options")
+            body["stream_options"] = {
+                "include_usage": True,
+                **(stream_options if isinstance(stream_options, dict) else {}),
+            }
         return body
 
     def parse(self, value: Any) -> ParsedCompletion:

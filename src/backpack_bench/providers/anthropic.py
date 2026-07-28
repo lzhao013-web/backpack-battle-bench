@@ -43,7 +43,7 @@ class AnthropicMessagesAdapter:
     def headers(self, profile: ModelProfile, api_key: str | None) -> dict[str, str]:
         headers = {
             "Content-Type": "application/json",
-            "Accept": "text/event-stream",
+            "Accept": "text/event-stream" if profile.params.stream else "application/json",
             "anthropic-version": "2023-06-01",
             **profile.extra_headers,
         }
@@ -108,7 +108,7 @@ class AnthropicMessagesAdapter:
                 body[key] = {**body[key], **value}
             else:
                 body[key] = value
-        body["stream"] = True
+        body["stream"] = params.stream
         return body
 
     def parse(self, value: Any) -> ParsedCompletion:

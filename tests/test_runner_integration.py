@@ -384,7 +384,7 @@ def test_6_job_matrix_retry_and_resume(
                 base_url=HttpUrl("https://mock.test/v1"),
                 model="model-b",
                 auth_mode="none",
-                params=RequestParams(max_tokens=4096),
+                params=RequestParams(max_tokens=4096, json_mode=False),
                 limits=ProviderLimits(concurrency=2, retries=1),
             ),
         ]

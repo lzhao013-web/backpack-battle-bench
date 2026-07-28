@@ -431,7 +431,7 @@ def _validate_completion(
         completion.content,
         registry,
         finish_reason=completion.finish_reason,
-        allow_markdown_json_fence=job.profile.params.json_mode,
+        allow_markdown_json_fence=True,
     )
 
 
