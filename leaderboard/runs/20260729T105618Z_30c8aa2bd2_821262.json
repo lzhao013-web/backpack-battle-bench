@@ -1,0 +1,157 @@
+{
+  "entries": [
+    {
+      "attack_best": 18,
+      "attack_mean": 6.0,
+      "attack_stddev": 8.48528137423857,
+      "attack_worst": 0,
+      "best_of_3_score": 100.0,
+      "cached_tokens": 0,
+      "completed_at": "2026-07-29T10:58:29.292760+00:00",
+      "display_name": "https://api.agnes-ai.cn/v1",
+      "eligibility_reasons": [],
+      "eligible": true,
+      "error_counts": {
+        "api_schema": 2,
+        "success": 1
+      },
+      "estimated_cost": null,
+      "groups": {
+        "difficulty": [
+          {
+            "attack_best": 18,
+            "attack_mean": 6.0,
+            "attack_stddev": 8.48528137423857,
+            "attack_worst": 0,
+            "best_of_3_score": 100.0,
+            "cached_tokens": 0,
+            "error_counts": {
+              "api_schema": 2,
+              "success": 1
+            },
+            "estimated_cost": null,
+            "group_value": "easy",
+            "input_tokens": 1656,
+            "jobs": 3,
+            "latency_p50_ms": 101607.52307099756,
+            "latency_p95_ms": 126659.12392047758,
+            "optimal_hit_rate": 0.3333333333333333,
+            "output_tokens": 8963,
+            "overall_score": 33.33333333333333,
+            "reasoning_tokens": 8094,
+            "retry_rate": 0.0,
+            "scenarios": 1,
+            "truncation_rate": 0.0,
+            "valid_rate": 0.3333333333333333
+          }
+        ],
+        "tag": [
+          {
+            "attack_best": 18,
+            "attack_mean": 6.0,
+            "attack_stddev": 8.48528137423857,
+            "attack_worst": 0,
+            "best_of_3_score": 100.0,
+            "cached_tokens": 0,
+            "error_counts": {
+              "api_schema": 2,
+              "success": 1
+            },
+            "estimated_cost": null,
+            "group_value": "curated",
+            "input_tokens": 1656,
+            "jobs": 3,
+            "latency_p50_ms": 101607.52307099756,
+            "latency_p95_ms": 126659.12392047758,
+            "optimal_hit_rate": 0.3333333333333333,
+            "output_tokens": 8963,
+            "overall_score": 33.33333333333333,
+            "reasoning_tokens": 8094,
+            "retry_rate": 0.0,
+            "scenarios": 1,
+            "truncation_rate": 0.0,
+            "valid_rate": 0.3333333333333333
+          },
+          {
+            "attack_best": 18,
+            "attack_mean": 6.0,
+            "attack_stddev": 8.48528137423857,
+            "attack_worst": 0,
+            "best_of_3_score": 100.0,
+            "cached_tokens": 0,
+            "error_counts": {
+              "api_schema": 2,
+              "success": 1
+            },
+            "estimated_cost": null,
+            "group_value": "packing",
+            "input_tokens": 1656,
+            "jobs": 3,
+            "latency_p50_ms": 101607.52307099756,
+            "latency_p95_ms": 126659.12392047758,
+            "optimal_hit_rate": 0.3333333333333333,
+            "output_tokens": 8963,
+            "overall_score": 33.33333333333333,
+            "reasoning_tokens": 8094,
+            "retry_rate": 0.0,
+            "scenarios": 1,
+            "truncation_rate": 0.0,
+            "valid_rate": 0.3333333333333333
+          }
+        ]
+      },
+      "input_tokens": 1656,
+      "jobs": 3,
+      "latency_p50_ms": 101607.52307099756,
+      "latency_p95_ms": 126659.12392047758,
+      "model": "agnes-2.5-flash",
+      "optimal_hit_rate": 0.3333333333333333,
+      "output_tokens": 8963,
+      "overall_score": 33.33333333333333,
+      "plan_id": "visual-smoke",
+      "profile_hash": "5428c7e49ea9cb4800e7d19b78193a4aad4506da08b4b134189f62ee454e9f69",
+      "profile_id": "web-5428c7e49ea9",
+      "protocol": "openai_chat",
+      "reasoning_tokens": 8094,
+      "retry_rate": 0.0,
+      "run_id": "20260729T105618Z_30c8aa2bd2_821262",
+      "scenario_results": [
+        {
+          "attack_best": 18,
+          "attack_mean": 6.0,
+          "attack_stddev": 8.48528137423857,
+          "attack_worst": 0,
+          "difficulty": "easy",
+          "error_counts": {
+            "api_schema": 2,
+            "success": 1
+          },
+          "optimal_hit_rate": 0.3333333333333333,
+          "oracle_attack": 18,
+          "ratio_best_of_3": 1.0,
+          "ratio_mean": 0.3333333333333333,
+          "scenario_id": "packing-3x3",
+          "tags": [
+            "curated",
+            "packing"
+          ],
+          "title": "3×3 纯装填取舍题",
+          "trials": 3,
+          "valid_rate": 0.3333333333333333,
+          "weight": 1.0
+        }
+      ],
+      "scenarios": 1,
+      "started_at": "2026-07-29T10:56:18.815993+00:00",
+      "thinking_effort": "high",
+      "trials": 3,
+      "truncation_rate": 0.0,
+      "valid_rate": 0.3333333333333333
+    }
+  ],
+  "prompt_mode": "visual_full",
+  "run_id": "20260729T105618Z_30c8aa2bd2_821262",
+  "schema_version": 1,
+  "suite_hash": "294ab4ca73139e74ca7d97c94fdb4f661776689edf6f739662e9a07d828752ad",
+  "suite_id": "smoke-v1"
+}
