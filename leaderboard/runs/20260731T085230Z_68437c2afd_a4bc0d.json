@@ -1304,7 +1304,7 @@
       "jobs": 45,
       "latency_p50_ms": 126685.18791801762,
       "latency_p95_ms": 308917.738058383,
-      "model": "deepseek-v4-flash-preview",
+      "model": "deepseek-v4-flash",
       "optimal_hit_rate": 0.4888888888888889,
       "output_tokens": 963147,
       "overall_score": 70.22906087584593,
