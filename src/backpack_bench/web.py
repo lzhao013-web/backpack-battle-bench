@@ -25,7 +25,7 @@ from fastapi.responses import (
 )
 from fastapi.staticfiles import StaticFiles
 from PIL import Image
-from pydantic import Field, HttpUrl, SecretStr
+from pydantic import AnyUrl, Field, HttpUrl, SecretStr
 from starlette.responses import Response
 
 from backpack_bench import __version__
@@ -82,6 +82,7 @@ class WebApiProfileInput(StrictModel):
     params: RequestParams = Field(default_factory=RequestParams)
     limits: ProviderLimits = Field(default_factory=ProviderLimits)
     verify_tls: bool = True
+    proxy_url: AnyUrl | None = None
 
 
 class WebRunRequest(StrictModel):
@@ -356,6 +357,7 @@ def _runtime_plan(
         params=value.params,
         limits=value.limits,
         verify_tls=value.verify_tls,
+        proxy_url=value.proxy_url,
     )
     current_profile_hash = profile_hash(profile)
     profile = profile.model_copy(update={"id": f"web-{current_profile_hash[:12]}"})

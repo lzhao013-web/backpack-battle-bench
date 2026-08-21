@@ -2,7 +2,7 @@
 
 Backpack Battle Bench 是一个用于评估大语言模型二维空间规划能力的基准项目。
 
-模型需要在有限的背包格子中摆放、旋转和组合装备，并根据物品属性与效果争取更高得分。项目同时提供纯文字和视觉题面，可以自动调用 OpenAI / Anthropic 兼容接口、验证答案并生成报告。
+模型需要在有限的背包格子中摆放、旋转和组合装备，并根据物品属性与效果争取更高得分。项目同时提供纯文字和视觉题面，可以自动调用 OpenAI Chat Completions、OpenAI Responses 和 Anthropic Messages 兼容接口，验证答案并生成报告。
 
 主要功能：
 
@@ -54,13 +54,31 @@ uv run bbbench web --no-open
 
 ### 1. 配置模型
 
-编辑 `configs/models.example.yaml`，填写接口地址、模型名、协议和请求参数。API Key 通过环境变量提供：
+编辑 `configs/models.example.yaml`，填写接口地址、模型名、协议和请求参数。`protocol` 可选 `openai_chat`、`openai_responses` 或 `anthropic_messages`。API Key 通过环境变量提供：
 
 ```powershell
 Copy-Item .env.example .env
 ```
 
 然后在 `.env` 中填写对应的 Key。
+
+OpenAI Responses API 配置示例：
+
+```yaml
+protocol: openai_responses
+base_url: https://api.openai.com/v1
+model: gpt-5
+api_key_env: OPENAI_COMPATIBLE_API_KEY
+```
+
+如需让某个模型的请求走代理，可在模型配置或 Web 高级参数中设置 `proxy_url`：
+
+```yaml
+proxy_url: http://127.0.0.1:7890
+# 也支持 socks5://127.0.0.1:1080 和 socks5h://127.0.0.1:1080
+```
+
+未设置 `proxy_url` 时，HTTPX 仍会读取标准的 `HTTP_PROXY`、`HTTPS_PROXY`、`ALL_PROXY` 和 `NO_PROXY` 环境变量。为避免代理凭据写入运行记录，`proxy_url` 不允许内嵌用户名或密码；有鉴权的代理请通过标准代理环境变量配置。
 
 ### 2. 检查任务
 

@@ -62,9 +62,10 @@ def openai_stream_response(answer: str, output_tokens: int = 20) -> httpx.Respon
 class WebFakeAsyncClient:
     prompt_answers: dict[str, str] = {}
     requests: list[dict[str, Any]] = []
+    initializations: list[dict[str, object]] = []
 
-    def __init__(self, **_: object) -> None:
-        pass
+    def __init__(self, **kwargs: object) -> None:
+        self.initializations.append(kwargs)
 
     @asynccontextmanager
     async def stream(
@@ -832,6 +833,7 @@ def test_web_runtime_api_profile_uses_ephemeral_key(
         if item.oracle.witness is not None
     }
     WebFakeAsyncClient.requests = []
+    WebFakeAsyncClient.initializations = []
     monkeypatch.setattr("backpack_bench.runner.httpx.AsyncClient", WebFakeAsyncClient)
     secret = "browser-only-test-secret"
 
@@ -864,6 +866,7 @@ def test_web_runtime_api_profile_uses_ephemeral_key(
                         "base_url": "https://runtime.test/v1",
                         "model": "runtime-reasoner",
                         "api_key": secret,
+                        "proxy_url": "socks5://127.0.0.1:1080",
                         "params": {
                             "thinking_effort": "xhigh",
                             "extra_body": {"chat_template_kwargs": {"enable_thinking": True}},
@@ -892,6 +895,11 @@ def test_web_runtime_api_profile_uses_ephemeral_key(
 
     asyncio.run(exercise())
     assert WebFakeAsyncClient.requests
+    assert WebFakeAsyncClient.initializations
+    assert all(
+        initialization["proxy"] == "socks5://127.0.0.1:1080"
+        for initialization in WebFakeAsyncClient.initializations
+    )
     assert all(
         request["headers"]["Authorization"] == f"Bearer {secret}"
         for request in WebFakeAsyncClient.requests

@@ -7,6 +7,7 @@ from typing import Any, Literal
 from urllib.parse import parse_qsl, urlsplit
 
 from pydantic import (
+    AnyUrl,
     BaseModel,
     ConfigDict,
     Field,
@@ -23,7 +24,7 @@ from backpack_bench.geometry import Cell
 
 Rotation = Literal[0, 90, 180, 270]
 Difficulty = Literal["easy", "medium", "hard"]
-ProviderProtocol = Literal["openai_chat", "anthropic_messages"]
+ProviderProtocol = Literal["openai_chat", "openai_responses", "anthropic_messages"]
 CREDENTIAL_FIELD_NAMES = {
     "api_key",
     "apikey",
@@ -337,7 +338,7 @@ class RequestParams(StrictModel):
 
     @model_validator(mode="after")
     def validate_extra_body(self) -> RequestParams:
-        reserved = {"model", "messages", "stream"} & self.extra_body.keys()
+        reserved = {"model", "messages", "input", "stream"} & self.extra_body.keys()
         if reserved:
             raise ValueError(f"extra_body cannot override benchmark fields: {sorted(reserved)}")
         forbidden = credential_paths(self.extra_body)
@@ -374,14 +375,15 @@ class ModelProfile(StrictModel):
     limits: ProviderLimits = Field(default_factory=ProviderLimits)
     pricing: PricingSpec | None = None
     verify_tls: bool = True
+    proxy_url: AnyUrl | None = None
     extra_headers: dict[str, str] = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def validate_profile(self) -> ModelProfile:
-        url_values = [str(self.base_url)]
+        endpoint_urls = [str(self.base_url)]
         if self.endpoint is not None:
-            url_values.append(self.endpoint)
-        for url in url_values:
+            endpoint_urls.append(self.endpoint)
+        for url in endpoint_urls:
             parsed = urlsplit(url)
             if parsed.username or parsed.password:
                 raise ValueError("credentials are forbidden in endpoint URLs; use api_key_env")
@@ -390,6 +392,25 @@ class ModelProfile(StrictModel):
             } & CREDENTIAL_FIELD_NAMES
             if query_credentials:
                 raise ValueError("credentials are forbidden in URL query; use api_key_env")
+        if self.proxy_url is not None:
+            parsed_proxy = urlsplit(str(self.proxy_url))
+            if parsed_proxy.scheme.lower() not in {"http", "https", "socks5", "socks5h"}:
+                raise ValueError("proxy_url must use http, https, socks5, or socks5h")
+            if parsed_proxy.hostname is None:
+                raise ValueError("proxy_url must include a host")
+            proxy_query_credentials = {
+                name.lower()
+                for name, _ in parse_qsl(parsed_proxy.query, keep_blank_values=True)
+            } & CREDENTIAL_FIELD_NAMES
+            if (
+                parsed_proxy.username
+                or parsed_proxy.password
+                or proxy_query_credentials
+            ):
+                raise ValueError(
+                    "credentials are forbidden in proxy_url; "
+                    "use standard proxy environment variables"
+                )
         for name in self.extra_headers:
             lowered = name.lower()
             if any(
@@ -399,11 +420,11 @@ class ModelProfile(StrictModel):
         params = self.params
         if self.auth_mode != "none" and self.api_key_env is None:
             raise ValueError("api_key_env is required unless auth_mode is none")
-        if self.protocol == "openai_chat" and any(
+        if self.protocol in {"openai_chat", "openai_responses"} and any(
             value is not None
             for value in (params.thinking_mode, params.thinking_budget, params.thinking_display)
         ):
-            raise ValueError("Anthropic thinking fields cannot be used with openai_chat")
+            raise ValueError("Anthropic thinking fields cannot be used with OpenAI protocols")
         if self.protocol == "anthropic_messages":
             if params.thinking_budget is not None and params.thinking_mode is None:
                 params.thinking_mode = "enabled"

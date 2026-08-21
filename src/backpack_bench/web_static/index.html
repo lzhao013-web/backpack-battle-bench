@@ -172,6 +172,7 @@
               <span>协议</span>
               <select id="api-protocol">
                 <option value="openai_chat">OpenAI Chat Completions</option>
+                <option value="openai_responses">OpenAI Responses</option>
                 <option value="anthropic_messages">Anthropic Messages</option>
               </select>
             </label>
@@ -208,6 +209,10 @@
               <label>
                 <span>自定义 Endpoint</span>
                 <input id="api-endpoint" type="text" spellcheck="false" placeholder="留空则自动拼接">
+              </label>
+              <label>
+                <span>代理 URL</span>
+                <input id="api-proxy-url" type="url" spellcheck="false" placeholder="http://127.0.0.1:7890">
               </label>
               <label>
                 <span>思考强度</span>
@@ -268,7 +273,7 @@
                   placeholder='{"chat_template_kwargs":{"enable_thinking":true}}'
                 ></textarea>
                 <small id="api-extra-body-help" class="api-field-help">
-                  合并到模型请求体；不能包含 model、messages、stream 或凭据。
+                  合并到模型请求体；不能包含 model、messages、input、stream 或凭据。
                 </small>
               </label>
             </div>

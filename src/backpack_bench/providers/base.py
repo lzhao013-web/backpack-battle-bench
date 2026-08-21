@@ -65,12 +65,18 @@ def effective_endpoint(profile: ModelProfile) -> str:
             return profile.endpoint.rstrip("/")
         return f"{str(profile.base_url).rstrip('/')}/{profile.endpoint.lstrip('/')}"
     base = str(profile.base_url).rstrip("/")
-    suffix = "/chat/completions" if profile.protocol == "openai_chat" else "/messages"
+    suffix = {
+        "openai_chat": "/chat/completions",
+        "openai_responses": "/responses",
+        "anthropic_messages": "/messages",
+    }[profile.protocol]
     return base if base.endswith(suffix) else f"{base}{suffix}"
 
 
 def effective_auth_mode(profile: ModelProfile) -> str:
-    return profile.auth_mode or ("bearer" if profile.protocol == "openai_chat" else "x-api-key")
+    return profile.auth_mode or (
+        "x-api-key" if profile.protocol == "anthropic_messages" else "bearer"
+    )
 
 
 def resolve_api_key(profile: ModelProfile) -> str | None:
@@ -98,6 +104,7 @@ def profile_hash(profile: ModelProfile) -> str:
             "auth_mode": effective_auth_mode(profile),
             "params": profile.params,
             "verify_tls": profile.verify_tls,
+            "proxy_url": str(profile.proxy_url) if profile.proxy_url is not None else None,
             "extra_headers": profile.extra_headers,
         }
     )

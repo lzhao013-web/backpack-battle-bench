@@ -3,6 +3,7 @@ import json
 import sqlite3
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -133,6 +134,97 @@ def test_long_sse_stream_is_incremental_and_spooled(
     assert full_scan_lengths[0] == len("".join(reasoning_chunks) + answer)
     assert progress == sorted(progress)
     raw_path.unlink()
+
+
+def test_openai_responses_sse_run_is_parsed_without_duplicate_text(
+    tmp_path: Path,
+) -> None:
+    plan = resolve_plan(
+        ROOT / "configs" / "run.example.yaml",
+        PluginRegistry(load_external=False),
+    )
+    original_job = build_jobs(plan, "responses-stream-test")[0]
+    assert original_job.scenario.oracle.witness is not None
+    answer = json.dumps(
+        original_job.scenario.oracle.witness.model_dump(mode="json"),
+        ensure_ascii=False,
+    )
+    profile = ModelProfile.model_validate(
+        {
+            "id": "responses",
+            "protocol": "openai_responses",
+            "base_url": "https://example.test/v1",
+            "model": "reasoner",
+            "auth_mode": "none",
+        }
+    )
+    job = replace(original_job, profile=profile)
+    midpoint = len(answer) // 2
+    final_response = {
+        "id": "resp_stream",
+        "status": "completed",
+        "output": [
+            {
+                "type": "message",
+                "role": "assistant",
+                "content": [{"type": "output_text", "text": answer}],
+            }
+        ],
+        "usage": {"input_tokens": 100, "output_tokens": 20},
+    }
+    events = [
+        {
+            "type": "response.output_text.delta",
+            "response_id": "resp_stream",
+            "delta": answer[:midpoint],
+        },
+        {
+            "type": "response.output_text.delta",
+            "response_id": "resp_stream",
+            "delta": answer[midpoint:],
+        },
+        {"type": "response.completed", "response": final_response},
+    ]
+    response_body = "\n\n".join(f"data: {json.dumps(event)}" for event in events)
+
+    class ResponsesAsyncClient:
+        @asynccontextmanager
+        async def stream(
+            self,
+            method: str,
+            url: str,
+            headers: dict[str, str],
+            json: dict[str, Any],
+        ) -> AsyncIterator[httpx.Response]:
+            assert method == "POST"
+            assert url == "https://example.test/v1/responses"
+            assert json["input"] == job.prompt
+            yield httpx.Response(
+                200,
+                content=response_body,
+                headers={"Content-Type": "text/event-stream"},
+                request=httpx.Request(method, url),
+            )
+
+    async def ignore_progress(_count: int, _estimated: bool, _force: bool) -> None:
+        pass
+
+    outcome = asyncio.run(
+        runner._call_once(
+            job,
+            ResponsesAsyncClient(),  # type: ignore[arg-type]
+            None,
+            plan.registry,
+            ignore_progress,
+            tmp_path / "responses.response.tmp",
+        )
+    )
+    assert outcome.error_type is None
+    assert outcome.completion is not None
+    assert outcome.completion.content == answer
+    assert outcome.completion.finish_reason == "stop"
+    assert outcome.validation is not None
+    assert outcome.validation["valid"] is True
 
 
 def test_visual_run_builds_image_backed_jobs() -> None:

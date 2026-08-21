@@ -799,6 +799,27 @@ def _estimated_cost(profile: ModelProfile, usage: dict[str, Any]) -> float | Non
     ) / 1_000_000
 
 
+def _omit_embedded_request_images(value: Any) -> None:
+    if isinstance(value, list):
+        for item in value:
+            _omit_embedded_request_images(item)
+        return
+    if not isinstance(value, dict):
+        return
+    image_url = value.get("image_url")
+    if isinstance(image_url, str) and image_url.startswith("data:image/"):
+        value["image_url"] = "<omitted:image>"
+    elif isinstance(image_url, dict):
+        url = image_url.get("url")
+        if isinstance(url, str) and url.startswith("data:image/"):
+            image_url["url"] = "<omitted:image>"
+    source = value.get("source")
+    if isinstance(source, dict) and source.get("type") == "base64" and "data" in source:
+        source["data"] = "<omitted:image>"
+    for item in value.values():
+        _omit_embedded_request_images(item)
+
+
 def _attempt_artifact(
     plan: ResolvedPlan,
     job: JobContext,
@@ -811,19 +832,8 @@ def _attempt_artifact(
     path = plan.artifacts / job.run_id / job.job_id / f"attempt_{attempt_no:03d}"
     path.mkdir(parents=True, exist_ok=False)
     request_body = adapter.body(job.profile, job.prompt, job.prompt_image)
-    messages = request_body.get("messages")
-    if job.prompt_image is not None and isinstance(messages, list) and messages:
-        content = messages[0].get("content") if isinstance(messages[0], dict) else None
-        if isinstance(content, list):
-            for block in content:
-                if not isinstance(block, dict):
-                    continue
-                image_url = block.get("image_url")
-                if isinstance(image_url, dict) and "url" in image_url:
-                    image_url["url"] = "<omitted:image/png>"
-                source = block.get("source")
-                if isinstance(source, dict) and "data" in source:
-                    source["data"] = "<omitted:image/png>"
+    if job.prompt_image is not None:
+        _omit_embedded_request_images(request_body)
     atomic_write_json(
         path / "request.json",
         redact_secret_values(
@@ -1153,6 +1163,7 @@ async def execute_plan(
             profile.id: httpx.AsyncClient(
                 timeout=profile.limits.timeout_seconds,
                 verify=profile.verify_tls,
+                proxy=str(profile.proxy_url) if profile.proxy_url is not None else None,
                 follow_redirects=True,
             )
             for profile in plan.profiles

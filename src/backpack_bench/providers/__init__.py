@@ -3,12 +3,15 @@
 from backpack_bench.providers.anthropic import AnthropicMessagesAdapter
 from backpack_bench.providers.base import ProviderAdapter
 from backpack_bench.providers.openai import OpenAIChatAdapter
+from backpack_bench.providers.responses import OpenAIResponsesAdapter
 from backpack_bench.schemas import ModelProfile
 
 
 def adapter_for(profile: ModelProfile) -> ProviderAdapter:
     if profile.protocol == "openai_chat":
         return OpenAIChatAdapter()
+    if profile.protocol == "openai_responses":
+        return OpenAIResponsesAdapter()
     return AnthropicMessagesAdapter()
 
 

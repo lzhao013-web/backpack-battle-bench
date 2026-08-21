@@ -955,7 +955,7 @@ function parseExtraBodyField() {
     }
   }
   input.setCustomValidity(message);
-  help.textContent = message || "合并到模型请求体；不能包含 model、messages、stream 或凭据。";
+  help.textContent = message || "合并到模型请求体；不能包含 model、messages、input、stream 或凭据。";
   help.classList.toggle("is-error", Boolean(message));
   return { valid: !message, value };
 }
@@ -998,6 +998,8 @@ function collectApiProfile() {
     limits,
     verify_tls: $("#api-verify-tls").checked,
   };
+  const proxyUrl = $("#api-proxy-url").value.trim();
+  if (proxyUrl) profile.proxy_url = proxyUrl;
   const authMode = $("#api-auth-mode").value;
   if (authMode) profile.auth_mode = authMode;
   return profile;
@@ -1012,11 +1014,21 @@ function browserProfileReady() {
   } catch {
     return false;
   }
-  const authMode = profile.auth_mode || (profile.protocol === "openai_chat" ? "bearer" : "x-api-key");
+  if (profile.proxy_url) {
+    try {
+      const proxy = new URL(profile.proxy_url);
+      if (!["http:", "https:", "socks5:", "socks5h:"].includes(proxy.protocol)) return false;
+      if (!proxy.hostname || proxy.username || proxy.password) return false;
+    } catch {
+      return false;
+    }
+  }
+  const authMode = profile.auth_mode
+    || (profile.protocol === "anthropic_messages" ? "x-api-key" : "bearer");
   if (authMode !== "none" && !profile.api_key) return false;
   return Array.from(document.querySelectorAll("#api-profile-fields input, #api-profile-fields textarea"))
     .every((input) => (
-      profile.protocol === "openai_chat" && input.id === "api-thinking-budget"
+      profile.protocol !== "anthropic_messages" && input.id === "api-thinking-budget"
         ? true
         : input.checkValidity()
     ));
@@ -1041,7 +1053,11 @@ function apiHistoryLabel(record) {
   } catch {
     // Keep the original URL for a legacy or incomplete record.
   }
-  const protocol = profile.protocol === "anthropic_messages" ? "Anthropic" : "OpenAI";
+  const protocol = {
+    anthropic_messages: "Anthropic",
+    openai_responses: "OpenAI Responses",
+    openai_chat: "OpenAI Chat",
+  }[profile.protocol] || profile.protocol;
   return `${profile.display_name || profile.model} · ${host} · ${protocol}`;
 }
 
@@ -1073,6 +1089,7 @@ function resetApiForm() {
   $("#toggle-api-key").setAttribute("aria-label", "显示 API Key");
   $("#api-auth-mode").value = "";
   $("#api-endpoint").value = "";
+  $("#api-proxy-url").value = "";
   $("#api-thinking-effort").value = "";
   $("#api-thinking-mode").value = "";
   $("#api-thinking-budget").value = "";
@@ -1104,6 +1121,7 @@ function applyApiHistoryRecord(record) {
   $("#toggle-api-key").setAttribute("aria-label", "显示 API Key");
   $("#api-auth-mode").value = profile.auth_mode || "";
   $("#api-endpoint").value = profile.endpoint || "";
+  $("#api-proxy-url").value = profile.proxy_url || "";
   $("#api-thinking-effort").value = params.thinking_effort || "";
   $("#api-thinking-mode").value = params.thinking_mode || "";
   $("#api-thinking-budget").value = params.thinking_budget || "";

@@ -9,6 +9,7 @@ from backpack_bench.providers.anthropic import (
 )
 from backpack_bench.providers.base import PromptImage, profile_hash
 from backpack_bench.providers.openai import OpenAIChatAdapter
+from backpack_bench.providers.responses import OpenAIResponsesAdapter
 from backpack_bench.schemas import ModelProfile
 
 
@@ -60,6 +61,89 @@ def test_openai_mapping_and_default_token_limit() -> None:
     assert content_event.content_delta == "{"
     assert content_event.reasoning_delta == "think"
     assert usage_event.usage["completion_tokens"] == 7
+
+
+def test_openai_responses_mapping_and_parsing() -> None:
+    profile = ModelProfile.model_validate(
+        {
+            "id": "responses-test",
+            "protocol": "openai_responses",
+            "base_url": "https://example.test/v1",
+            "model": "reasoner",
+            "auth_mode": "none",
+            "params": {
+                "thinking_effort": "high",
+                "max_tokens": 4096,
+                "temperature": 0.2,
+            },
+        }
+    )
+    adapter = OpenAIResponsesAdapter()
+    assert adapter.endpoint(profile) == "https://example.test/v1/responses"
+    assert adapter.headers(profile, None)["Accept"] == "text/event-stream"
+    body = adapter.body(profile, "prompt")
+    assert body == {
+        "model": "reasoner",
+        "input": "prompt",
+        "temperature": 0.2,
+        "max_output_tokens": 4096,
+        "reasoning": {"effort": "high"},
+        "text": {"format": {"type": "json_object"}},
+        "stream": True,
+    }
+    response = {
+        "id": "resp_123",
+        "object": "response",
+        "status": "completed",
+        "output": [
+            {
+                "type": "reasoning",
+                "summary": [{"type": "summary_text", "text": "thinking"}],
+            },
+            {
+                "type": "message",
+                "role": "assistant",
+                "content": [{"type": "output_text", "text": "{}"}],
+            },
+        ],
+        "usage": {"input_tokens": 10, "output_tokens": 8},
+    }
+    parsed = adapter.parse(response)
+    assert parsed.content == "{}"
+    assert parsed.reasoning == "thinking"
+    assert parsed.finish_reason == "stop"
+    assert parsed.response_id == "resp_123"
+    assert adapter.parse({"type": "response.completed", "response": response}) == parsed
+
+    content_delta = adapter.parse_stream_event(
+        {
+            "type": "response.output_text.delta",
+            "response_id": "resp_123",
+            "delta": "{",
+        }
+    )
+    reasoning_delta = adapter.parse_stream_event(
+        {
+            "type": "response.reasoning_summary_text.delta",
+            "response_id": "resp_123",
+            "delta": "think",
+        }
+    )
+    incomplete = adapter.parse_stream_event(
+        {
+            "type": "response.incomplete",
+            "response": {
+                "id": "resp_123",
+                "status": "incomplete",
+                "incomplete_details": {"reason": "max_output_tokens"},
+                "usage": {"output_tokens": 4096},
+            },
+        }
+    )
+    assert content_delta.content_delta == "{"
+    assert reasoning_delta.reasoning_delta == "think"
+    assert incomplete.finish_reason == "length"
+    assert incomplete.usage == {"output_tokens": 4096}
 
 
 def test_anthropic_adaptive_effort_and_truncation() -> None:
@@ -140,12 +224,13 @@ def test_anthropic_default_omits_max_tokens() -> None:
     ("protocol", "adapter", "json_field"),
     [
         ("openai_chat", OpenAIChatAdapter(), "response_format"),
+        ("openai_responses", OpenAIResponsesAdapter(), "text"),
         ("anthropic_messages", AnthropicMessagesAdapter(), "output_config"),
     ],
 )
 def test_json_mode_can_be_disabled(
     protocol: str,
-    adapter: OpenAIChatAdapter | AnthropicMessagesAdapter,
+    adapter: OpenAIChatAdapter | OpenAIResponsesAdapter | AnthropicMessagesAdapter,
     json_field: str,
 ) -> None:
     profile = ModelProfile.model_validate(
@@ -174,6 +259,9 @@ def test_multimodal_image_mapping(tmp_path: Path) -> None:
             "auth_mode": "none",
         }
     )
+    responses_profile = openai_profile.model_copy(
+        update={"id": "responses-vision", "protocol": "openai_responses"}
+    )
     anthropic_profile = openai_profile.model_copy(
         update={"id": "anthropic-vision", "protocol": "anthropic_messages"}
     )
@@ -182,6 +270,12 @@ def test_multimodal_image_mapping(tmp_path: Path) -> None:
     ]
     assert openai_content[0] == {"type": "text", "text": "prompt"}
     assert openai_content[1]["image_url"]["url"].startswith("data:image/png;base64,")
+    responses_content = OpenAIResponsesAdapter().body(responses_profile, "prompt", image)[
+        "input"
+    ][0]["content"]
+    assert responses_content[0] == {"type": "input_text", "text": "prompt"}
+    assert responses_content[1]["type"] == "input_image"
+    assert responses_content[1]["image_url"].startswith("data:image/png;base64,")
     anthropic_content = AnthropicMessagesAdapter().body(anthropic_profile, "prompt", image)[
         "messages"
     ][0]["content"]
@@ -238,6 +332,7 @@ def test_profile_identity_excludes_key_name_and_normalizes_endpoint() -> None:
 def test_extra_body_cannot_replace_prompt_or_contain_credentials() -> None:
     invalid_bodies: list[dict[str, object]] = [
         {"messages": []},
+        {"input": "replacement prompt"},
         {"stream": False},
         {"api_key": "not-allowed"},
         {"provider_options": {"authorization": "not-allowed"}},
@@ -254,6 +349,50 @@ def test_extra_body_cannot_replace_prompt_or_contain_credentials() -> None:
                     "params": {"extra_body": extra_body},
                 }
             )
+
+
+def test_proxy_url_validation_and_profile_identity() -> None:
+    direct = ModelProfile.model_validate(
+        {
+            "id": "direct",
+            "protocol": "openai_responses",
+            "base_url": "https://example.test/v1",
+            "model": "model",
+            "auth_mode": "none",
+        }
+    )
+    proxied = ModelProfile.model_validate(
+        {
+            **direct.model_dump(),
+            "id": "proxied",
+            "proxy_url": "socks5://127.0.0.1:1080",
+        }
+    )
+    assert str(proxied.proxy_url) == "socks5://127.0.0.1:1080"
+    assert profile_hash(direct) != profile_hash(proxied)
+
+    with pytest.raises(ValidationError, match="credentials are forbidden in proxy_url"):
+        ModelProfile.model_validate(
+            {
+                "id": "credentialed-proxy",
+                "protocol": "openai_chat",
+                "base_url": "https://example.test/v1",
+                "model": "model",
+                "auth_mode": "none",
+                "proxy_url": "http://user:password@proxy.test:8080",
+            }
+        )
+    with pytest.raises(ValidationError, match="proxy_url must use"):
+        ModelProfile.model_validate(
+            {
+                "id": "invalid-proxy",
+                "protocol": "openai_chat",
+                "base_url": "https://example.test/v1",
+                "model": "model",
+                "auth_mode": "none",
+                "proxy_url": "ftp://proxy.test",
+            }
+        )
 
 
 def test_credentials_are_forbidden_in_endpoint_url() -> None:

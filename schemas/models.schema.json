@@ -101,10 +101,25 @@
         "protocol": {
           "enum": [
             "openai_chat",
+            "openai_responses",
             "anthropic_messages"
           ],
           "title": "Protocol",
           "type": "string"
+        },
+        "proxy_url": {
+          "anyOf": [
+            {
+              "format": "uri",
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Proxy Url"
         },
         "verify_tls": {
           "default": true,
