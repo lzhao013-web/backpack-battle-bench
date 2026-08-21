@@ -113,6 +113,7 @@ class WebRunManager:
         resume_run_id: str | None = None,
         api_key_overrides: dict[str, str] | None = None,
         rerun_job_id: str | None = None,
+        rerun_zero_output_jobs: bool = False,
     ) -> ManagedRun:
         overrides = api_key_overrides or {}
         for profile in plan.profiles:
@@ -126,7 +127,14 @@ class WebRunManager:
             state = ManagedRun(run_id=run_id, config_id=config_id, status="starting")
             self.states[run_id] = state
             task = asyncio.create_task(
-                self._worker(state, plan, resume_run_id, overrides, rerun_job_id)
+                self._worker(
+                    state,
+                    plan,
+                    resume_run_id,
+                    overrides,
+                    rerun_job_id,
+                    rerun_zero_output_jobs,
+                )
             )
             self.tasks[run_id] = task
             return state
@@ -138,6 +146,7 @@ class WebRunManager:
         resume_run_id: str | None,
         api_key_overrides: dict[str, str],
         rerun_job_id: str | None,
+        rerun_zero_output_jobs: bool,
     ) -> None:
         state.status = "running"
         try:
@@ -147,6 +156,7 @@ class WebRunManager:
                 new_run_id=None if resume_run_id else state.run_id,
                 api_key_overrides=api_key_overrides,
                 rerun_job_id=rerun_job_id,
+                rerun_zero_output_jobs=rerun_zero_output_jobs,
             )
             state.status = str(state.result["status"])
         except asyncio.CancelledError:
@@ -863,6 +873,60 @@ def create_app(workspace: Path | None = None) -> FastAPI:
             "run_id": managed.run_id,
             "status": managed.status,
             "job_id": job_id,
+        }
+
+    @app.post(
+        "/api/run-configs/{config_id}/runs/{run_id}/rerun-zero-output-jobs",
+        status_code=status.HTTP_202_ACCEPTED,
+    )
+    async def rerun_all_zero_output_jobs(
+        config_id: str,
+        run_id: str,
+        request: WebRunRequest | None = None,
+    ) -> dict[str, Any]:
+        base_plan = context.run_config(config_id)
+        try:
+            plan, api_key_overrides = _runtime_plan(
+                base_plan,
+                request.profile if request is not None else None,
+            )
+        except ValueError as error:
+            raise HTTPException(status_code=400, detail=str(error)) from error
+        storage = Storage(plan.database)
+        try:
+            run = storage.get_run(run_id)
+            if run is None:
+                raise HTTPException(status_code=404, detail=f"unknown run: {run_id}")
+            if run["plan_hash"] != plan.plan_hash:
+                raise HTTPException(status_code=409, detail="run does not match this config")
+            if run["status"] != "completed":
+                raise HTTPException(status_code=409, detail="只有已完成的 Run 可以重跑 Job")
+            job_ids = [
+                str(job["job_id"])
+                for job in storage.run_job_rows(run_id)
+                if job["result_job_id"] is not None and _output_tokens(job["usage_json"]) == 0
+            ]
+            if not job_ids:
+                raise HTTPException(status_code=409, detail="该 Run 没有输出 Token 为 0 的 Job")
+        finally:
+            storage.close()
+        try:
+            managed = await manager.start(
+                config_id,
+                plan,
+                resume_run_id=run_id,
+                api_key_overrides=api_key_overrides,
+                rerun_zero_output_jobs=True,
+            )
+        except ValueError as error:
+            raise HTTPException(status_code=400, detail=str(error)) from error
+        except RuntimeError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+        return {
+            "run_id": managed.run_id,
+            "status": managed.status,
+            "job_ids": job_ids,
+            "job_count": len(job_ids),
         }
 
     @app.get("/api/run-configs/{config_id}/runs/{run_id}")

@@ -1528,6 +1528,7 @@ function schedulePolling(runId) {
 function selectRun(runId) {
   stopPolling();
   stopRunStream("正在连接…", "connecting");
+  $("#rerun-zero-output-jobs").hidden = true;
   state.selectedRunId = runId;
   loadRunStatus(runId);
 }
@@ -1664,6 +1665,10 @@ function renderRunProgress(payload) {
   error.textContent = payload.error || "";
   const canResume = ["failed", "interrupted"].includes(payload.status);
   $("#resume-run").hidden = !canResume;
+  const zeroOutputCount = (payload.jobs || []).filter((job) => job.output_tokens === 0).length;
+  const rerunZeroOutputButton = $("#rerun-zero-output-jobs");
+  rerunZeroOutputButton.hidden = payload.status !== "completed" || zeroOutputCount === 0;
+  rerunZeroOutputButton.dataset.jobCount = String(zeroOutputCount);
   const canStop = ["running", "starting", "stopping"].includes(payload.status);
   const stopButton = $("#stop-run");
   stopButton.hidden = !canStop;
@@ -1805,6 +1810,36 @@ async function rerunZeroScoreJob(job, button) {
   }
 }
 
+async function rerunAllZeroOutputJobs() {
+  if (!state.runConfigId || !state.selectedRunId) return;
+  if (!runSourceReady()) {
+    renderRunPreview();
+    return;
+  }
+  const button = $("#rerun-zero-output-jobs");
+  const jobCount = Number(button.dataset.jobCount || 0);
+  if (!jobCount || !window.confirm(
+    `确定一次性重跑这个 Run 中全部 ${jobCount} 个输出 Token 为 0 的结果？旧尝试会保留，新请求会追加为后续 Attempt。`,
+  )) return;
+  if (usingBrowserProfile()) flushApiHistorySave(true);
+  button.disabled = true;
+  button.textContent = "批量重跑中…";
+  setRunNotice(`正在准备重跑 ${jobCount} 个 0 输出结果…`);
+  try {
+    const payload = await api(
+      `/api/run-configs/${encodeURIComponent(state.runConfigId)}/runs/${encodeURIComponent(state.selectedRunId)}/rerun-zero-output-jobs`,
+      { method: "POST", body: JSON.stringify(currentRunRequest()) },
+    );
+    setRunNotice(`Run ${payload.run_id} 正在重跑 ${payload.job_count} 个 0 输出结果`);
+    await loadRunStatus(payload.run_id);
+  } catch (error) {
+    setRunNotice(error.message, true);
+  } finally {
+    button.disabled = false;
+    button.textContent = "重跑全部 0 输出结果";
+  }
+}
+
 async function stopRun() {
   if (!state.runConfigId || !state.selectedRunId) return;
   if (!window.confirm(`确定中断 Run ${state.selectedRunId}？已完成结果会保留，可稍后恢复。`)) {
@@ -1849,6 +1884,7 @@ async function deleteRun() {
     $("#run-detail").hidden = true;
     $("#run-detail-empty").hidden = false;
     $("#selected-run-id").textContent = "选择一个 Run";
+    $("#rerun-zero-output-jobs").hidden = true;
     const cleanupNote = payload.cleanup_errors?.length
       ? `；有 ${payload.cleanup_errors.length} 个临时目录清理失败`
       : "";
@@ -1953,6 +1989,7 @@ function bindEvents() {
   $("#refresh-runs").addEventListener("click", refreshRuns);
   $("#stop-run").addEventListener("click", stopRun);
   $("#resume-run").addEventListener("click", resumeRun);
+  $("#rerun-zero-output-jobs").addEventListener("click", rerunAllZeroOutputJobs);
 $("#delete-run").addEventListener("click", deleteRun);
 $("#visual-sheet-mode").addEventListener("change", () => {
   renderVisualScenarioInput();

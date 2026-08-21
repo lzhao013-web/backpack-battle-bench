@@ -1028,11 +1028,16 @@ async def execute_plan(
     new_run_id: str | None = None,
     api_key_overrides: dict[str, str] | None = None,
     rerun_job_id: str | None = None,
+    rerun_zero_output_jobs: bool = False,
 ) -> dict[str, Any]:
     if resume_run_id is not None and new_run_id is not None:
         raise ValueError("resume_run_id and new_run_id are mutually exclusive")
     if rerun_job_id is not None and resume_run_id is None:
         raise ValueError("rerun_job_id requires resume_run_id")
+    if rerun_zero_output_jobs and resume_run_id is None:
+        raise ValueError("rerun_zero_output_jobs requires resume_run_id")
+    if rerun_job_id is not None and rerun_zero_output_jobs:
+        raise ValueError("rerun_job_id and rerun_zero_output_jobs are mutually exclusive")
     overrides = api_key_overrides or {}
     api_keys = {
         profile.id: overrides[profile.id] if profile.id in overrides else resolve_api_key(profile)
@@ -1061,6 +1066,9 @@ async def execute_plan(
             if rerun_job_id is not None:
                 if not storage.reset_zero_score_job(run_id, rerun_job_id):
                     raise ValueError(f"job {rerun_job_id} is not a completed zero-score job")
+            elif rerun_zero_output_jobs:
+                if not storage.reset_zero_output_jobs(run_id):
+                    raise ValueError(f"run {run_id} has no completed zero-output jobs")
             else:
                 storage.reset_interrupted(run_id)
             run_registered = True

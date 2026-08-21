@@ -318,6 +318,49 @@ class Storage:
         self.connection.commit()
         return True
 
+    def reset_zero_output_jobs(self, run_id: str) -> list[str]:
+        """Keep prior attempts and make every completed zero-output job runnable again."""
+        rows = self.connection.execute(
+            """
+            SELECT j.job_id, r.usage_json
+            FROM jobs j
+            JOIN results r ON r.job_id=j.job_id
+            WHERE j.run_id=? AND j.status='completed'
+            ORDER BY j.job_id
+            """,
+            (run_id,),
+        ).fetchall()
+        job_ids: list[str] = []
+        for row in rows:
+            try:
+                usage = json.loads(row["usage_json"])
+                output_tokens = int(
+                    usage.get("completion_tokens", usage.get("output_tokens", 0)) or 0
+                )
+            except (AttributeError, TypeError, ValueError, json.JSONDecodeError):
+                output_tokens = 0
+            if output_tokens == 0:
+                job_ids.append(str(row["job_id"]))
+        if not job_ids:
+            return []
+        self.connection.executemany(
+            "DELETE FROM results WHERE job_id=?",
+            ((job_id,) for job_id in job_ids),
+        )
+        self.connection.executemany(
+            """
+            UPDATE jobs
+            SET status='pending', live_output_tokens=NULL, live_tokens_estimated=NULL
+            WHERE job_id=?
+            """,
+            ((job_id,) for job_id in job_ids),
+        )
+        self.connection.execute(
+            "UPDATE runs SET status='running', completed_at=NULL WHERE run_id=?", (run_id,)
+        )
+        self.connection.commit()
+        return job_ids
+
     def set_job_status(self, job_id: str, status: str) -> None:
         if status == "running":
             self.connection.execute(
