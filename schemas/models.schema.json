@@ -260,6 +260,11 @@
           "default": null,
           "title": "Seed"
         },
+        "split_image": {
+          "default": false,
+          "title": "Split Image",
+          "type": "boolean"
+        },
         "stream": {
           "default": true,
           "title": "Stream",

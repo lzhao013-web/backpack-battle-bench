@@ -11,6 +11,8 @@ profiles:
     params:
       thinking_effort: medium
       json_mode: true
+      # 可选：发送完整总览，并将视觉题面切分为每张不超过 640000 像素的高清分片。
+      # split_image: true
     limits:
       concurrency: 10
       qps: 1

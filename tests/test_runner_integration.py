@@ -243,6 +243,24 @@ def test_visual_run_builds_image_backed_jobs() -> None:
     body = adapter_for(job.profile).body(job.profile, job.prompt, job.prompt_image)
     assert isinstance(body["messages"][0]["content"], list)
 
+    split_profile = job.profile.model_copy(
+        update={"params": job.profile.params.model_copy(update={"split_image": True})}
+    )
+    split_plan = replace(plan, profiles=(split_profile,))
+    split_job = build_jobs(split_plan, "visual-split-test")[0]
+    assert len(split_job.prompt_images) > 2
+    assert split_job.prompt_images[0].is_overview
+    assert all(not image.is_overview for image in split_job.prompt_images[1:])
+    split_body = adapter_for(split_job.profile).body(
+        split_job.profile,
+        split_job.prompt,
+        split_job.prompt_images,
+    )
+    split_content = split_body["messages"][0]["content"]
+    assert "第 1 张图片是低分辨率的完整题面总览图" in split_content[0]["text"]
+    assert "跨越分片边界" in split_content[0]["text"]
+    assert len(split_content) == len(split_job.prompt_images) + 1
+
 
 def json_text(value: Any) -> str:
     return json.dumps(value)

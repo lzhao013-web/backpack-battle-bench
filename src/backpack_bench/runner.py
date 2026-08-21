@@ -33,6 +33,7 @@ from backpack_bench.providers.base import (
     ParsedCompletion,
     PromptImage,
     profile_hash,
+    prompt_images_with_overview,
     redact_headers,
     redact_secret_values,
     resolve_api_key,
@@ -86,6 +87,7 @@ class JobContext:
     scenario: ResolvedScenario
     prompt: str
     prompt_image: PromptImage | None
+    prompt_images: tuple[PromptImage, ...]
     trial: int
 
 
@@ -344,6 +346,7 @@ def build_jobs(plan: ResolvedPlan, run_id: str) -> list[JobContext]:
             if plan.spec.prompt_mode == "text":
                 prompt = resolved_scenario.prompt
                 prompt_image = None
+                prompt_images: tuple[PromptImage, ...] = ()
             else:
                 prompt = render_visual_prompt(
                     resolved_scenario.scenario,
@@ -356,6 +359,11 @@ def build_jobs(plan: ResolvedPlan, run_id: str) -> list[JobContext]:
                     plan.spec.prompt_mode,
                 )
                 prompt_image = PromptImage(str(sheet_path))
+                prompt_images = (
+                    prompt_images_with_overview(prompt_image)
+                    if profile.params.split_image
+                    else (prompt_image,)
+                )
             for trial in range(1, plan.spec.trials + 1):
                 job_id = content_hash(
                     {
@@ -374,6 +382,7 @@ def build_jobs(plan: ResolvedPlan, run_id: str) -> list[JobContext]:
                         scenario=resolved_scenario,
                         prompt=prompt,
                         prompt_image=prompt_image,
+                        prompt_images=prompt_images,
                         trial=trial,
                     )
                 )
@@ -446,7 +455,7 @@ async def _call_once(
     adapter = adapter_for(job.profile)
     endpoint = adapter.endpoint(job.profile)
     headers = adapter.headers(job.profile, api_key)
-    body = adapter.body(job.profile, job.prompt, job.prompt_image)
+    body = adapter.body(job.profile, job.prompt, job.prompt_images)
     await token_progress(0, True, True)
     started = time.perf_counter()
     http_status: int | None = None
@@ -831,8 +840,8 @@ def _attempt_artifact(
     error_type, error_message = _attempt_failure(outcome)
     path = plan.artifacts / job.run_id / job.job_id / f"attempt_{attempt_no:03d}"
     path.mkdir(parents=True, exist_ok=False)
-    request_body = adapter.body(job.profile, job.prompt, job.prompt_image)
-    if job.prompt_image is not None:
+    request_body = adapter.body(job.profile, job.prompt, job.prompt_images)
+    if job.prompt_images:
         _omit_embedded_request_images(request_body)
     atomic_write_json(
         path / "request.json",
@@ -1099,7 +1108,12 @@ async def execute_plan(
                     ),
                 }
             )
-        scenario_inputs = {job.scenario.entry.scenario_hash: job for job in jobs}
+        scenario_inputs: dict[str, JobContext] = {}
+        for job in jobs:
+            scenario_hash = job.scenario.entry.scenario_hash
+            current = scenario_inputs.get(scenario_hash)
+            if current is None or len(job.prompt_images) > len(current.prompt_images):
+                scenario_inputs[scenario_hash] = job
         for scenario in plan.suite.scenarios:
             storage.register_scenario(
                 {
@@ -1121,9 +1135,40 @@ async def execute_plan(
                     image_path = (
                         plan.artifacts / run_id / "inputs" / f"{scenario.entry.scenario_hash}.png"
                     )
-                    atomic_write_bytes(
-                        image_path, Path(current_input.prompt_image.path).read_bytes()
-                    )
+                    atomic_write_bytes(image_path, current_input.prompt_image.bytes_data())
+                    if len(current_input.prompt_images) > 1:
+                        overview = next(
+                            (
+                                image
+                                for image in current_input.prompt_images
+                                if image.is_overview
+                            ),
+                            None,
+                        )
+                        if overview is not None:
+                            overview_path = (
+                                plan.artifacts
+                                / run_id
+                                / "inputs"
+                                / f"{scenario.entry.scenario_hash}.overview.png"
+                            )
+                            atomic_write_bytes(overview_path, overview.bytes_data())
+                        parts = [
+                            image
+                            for image in current_input.prompt_images
+                            if not image.is_overview
+                        ]
+                        for index, part in enumerate(parts, start=1):
+                            part_path = (
+                                plan.artifacts
+                                / run_id
+                                / "inputs"
+                                / (
+                                    f"{scenario.entry.scenario_hash}.part-{index:03d}-of-"
+                                    f"{len(parts):03d}.png"
+                                )
+                            )
+                            atomic_write_bytes(part_path, part.bytes_data())
         for job in jobs:
             storage.create_job(
                 {

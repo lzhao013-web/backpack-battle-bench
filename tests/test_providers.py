@@ -1,13 +1,21 @@
+import io
 from pathlib import Path
 
 import pytest
+from PIL import Image
 from pydantic import ValidationError
 
 from backpack_bench.providers.anthropic import (
     PLACEMENT_ANSWER_SCHEMA,
     AnthropicMessagesAdapter,
 )
-from backpack_bench.providers.base import PromptImage, profile_hash
+from backpack_bench.providers.base import (
+    MAX_PROMPT_IMAGE_PIXELS,
+    PromptImage,
+    profile_hash,
+    prompt_images_with_overview,
+    split_prompt_image,
+)
 from backpack_bench.providers.openai import OpenAIChatAdapter
 from backpack_bench.providers.responses import OpenAIResponsesAdapter
 from backpack_bench.schemas import ModelProfile
@@ -287,6 +295,69 @@ def test_multimodal_image_mapping(tmp_path: Path) -> None:
     }
 
 
+def test_large_image_is_evenly_split_and_all_parts_are_mapped(tmp_path: Path) -> None:
+    image_path = tmp_path / "large.png"
+    Image.new("RGB", (1601, 800), "white").save(image_path)
+    parts = split_prompt_image(PromptImage(str(image_path)))
+
+    assert len(parts) == 3
+    sizes: list[tuple[int, int]] = []
+    for part in parts:
+        with Image.open(io.BytesIO(part.bytes_data())) as tile:
+            sizes.append(tile.size)
+            assert tile.width * tile.height <= MAX_PROMPT_IMAGE_PIXELS
+    assert max(width for width, _ in sizes) - min(width for width, _ in sizes) <= 1
+    assert {height for _, height in sizes} == {800}
+
+    request_images = prompt_images_with_overview(PromptImage(str(image_path)))
+    assert len(request_images) == 4
+    assert request_images[0].is_overview
+    assert all(not image.is_overview for image in request_images[1:])
+    with Image.open(io.BytesIO(request_images[0].bytes_data())) as overview:
+        assert overview.width * overview.height <= MAX_PROMPT_IMAGE_PIXELS
+        assert overview.size[0] / overview.size[1] == pytest.approx(1601 / 800, rel=0.01)
+
+    profile = ModelProfile.model_validate(
+        {
+            "id": "split-vision",
+            "protocol": "openai_chat",
+            "base_url": "https://example.test/v1",
+            "model": "vision",
+            "auth_mode": "none",
+            "params": {"split_image": True},
+        }
+    )
+    openai_content = OpenAIChatAdapter().body(profile, "prompt", request_images)["messages"][
+        0
+    ]["content"]
+    assert "第 1 张图片是低分辨率的完整题面总览图" in openai_content[0]["text"]
+    assert "随后 3 张图片是原始题面的高清分片" in openai_content[0]["text"]
+    assert "1 行 × 3 列" in openai_content[0]["text"]
+    assert "跨越分片边界" in openai_content[0]["text"]
+    assert len([block for block in openai_content if block["type"] == "image_url"]) == 4
+
+    responses_profile = profile.model_copy(update={"protocol": "openai_responses"})
+    responses_content = OpenAIResponsesAdapter().body(
+        responses_profile, "prompt", request_images
+    )[
+        "input"
+    ][0]["content"]
+    assert len([block for block in responses_content if block["type"] == "input_image"]) == 4
+
+    anthropic_profile = profile.model_copy(update={"protocol": "anthropic_messages"})
+    anthropic_content = AnthropicMessagesAdapter().body(
+        anthropic_profile, "prompt", request_images
+    )["messages"][0]["content"]
+    assert len([block for block in anthropic_content if block["type"] == "image"]) == 4
+
+
+def test_image_within_pixel_limit_is_not_reencoded(tmp_path: Path) -> None:
+    image_path = tmp_path / "small.png"
+    Image.new("RGB", (800, 800), "white").save(image_path)
+    image = PromptImage(str(image_path))
+    assert split_prompt_image(image) == (image,)
+
+
 def test_manual_anthropic_thinking_requires_valid_output_budget() -> None:
     with pytest.raises(ValidationError, match="budget"):
         ModelProfile.model_validate(
@@ -327,6 +398,10 @@ def test_profile_identity_excludes_key_name_and_normalizes_endpoint() -> None:
         }
     )
     assert profile_hash(first) == profile_hash(second)
+    split = first.model_copy(
+        update={"params": first.params.model_copy(update={"split_image": True})}
+    )
+    assert profile_hash(first) != profile_hash(split)
 
 
 def test_extra_body_cannot_replace_prompt_or_contain_credentials() -> None:

@@ -7,9 +7,11 @@ from typing import Any, cast
 from backpack_bench.providers.base import (
     ParsedCompletion,
     ParsedStreamEvent,
-    PromptImage,
+    PromptImageInput,
     effective_auth_mode,
     effective_endpoint,
+    normalize_prompt_images,
+    prompt_for_images,
     text_content,
 )
 from backpack_bench.schemas import ModelProfile
@@ -36,14 +38,21 @@ class OpenAIChatAdapter:
         self,
         profile: ModelProfile,
         prompt: str,
-        image: PromptImage | None = None,
+        image: PromptImageInput = None,
     ) -> dict[str, Any]:
         params = profile.params
+        images = normalize_prompt_images(image)
         content: str | list[dict[str, Any]] = prompt
-        if image is not None:
+        if images:
             content = [
-                {"type": "text", "text": prompt},
-                {"type": "image_url", "image_url": {"url": image.data_url(), "detail": "high"}},
+                {"type": "text", "text": prompt_for_images(prompt, images)},
+                *[
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": item.data_url(), "detail": "high"},
+                    }
+                    for item in images
+                ],
             ]
         body: dict[str, Any] = {
             "model": profile.model,

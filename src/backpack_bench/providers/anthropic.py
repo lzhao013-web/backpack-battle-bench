@@ -7,9 +7,11 @@ from typing import Any, cast
 from backpack_bench.providers.base import (
     ParsedCompletion,
     ParsedStreamEvent,
-    PromptImage,
+    PromptImageInput,
     effective_auth_mode,
     effective_endpoint,
+    normalize_prompt_images,
+    prompt_for_images,
 )
 from backpack_bench.schemas import ModelProfile
 
@@ -58,21 +60,25 @@ class AnthropicMessagesAdapter:
         self,
         profile: ModelProfile,
         prompt: str,
-        image: PromptImage | None = None,
+        image: PromptImageInput = None,
     ) -> dict[str, Any]:
         params = profile.params
+        images = normalize_prompt_images(image)
         content: str | list[dict[str, Any]] = prompt
-        if image is not None:
+        if images:
             content = [
-                {"type": "text", "text": prompt},
-                {
-                    "type": "image",
-                    "source": {
-                        "type": "base64",
-                        "media_type": image.media_type,
-                        "data": image.base64_data(),
-                    },
-                },
+                {"type": "text", "text": prompt_for_images(prompt, images)},
+                *[
+                    {
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": item.media_type,
+                            "data": item.base64_data(),
+                        },
+                    }
+                    for item in images
+                ],
             ]
         body: dict[str, Any] = {
             "model": profile.model,

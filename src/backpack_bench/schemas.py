@@ -333,6 +333,7 @@ class RequestParams(StrictModel):
     thinking_display: Literal["summarized", "omitted"] | None = None
     json_mode: bool = True
     stream: bool = True
+    split_image: bool = False
     seed: int | None = None
     extra_body: dict[str, Any] = Field(default_factory=dict)
 

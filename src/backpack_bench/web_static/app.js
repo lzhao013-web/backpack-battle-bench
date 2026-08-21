@@ -965,6 +965,7 @@ function collectApiProfile() {
   const params = {
     json_mode: $("#api-json-mode").checked,
     stream: $("#api-stream").checked,
+    split_image: $("#api-split-image").checked,
   };
   const temperature = optionalNumber("#api-temperature");
   const maxTokens = optionalNumber("#api-max-tokens", true);
@@ -1102,6 +1103,8 @@ function resetApiForm() {
   $("#api-retries").value = "3";
   $("#api-verify-tls").checked = true;
   $("#api-json-mode").checked = true;
+  $("#api-stream").checked = true;
+  $("#api-split-image").checked = false;
   $("#remember-api-key").checked = true;
   parseExtraBodyField();
   syncProtocolFields();
@@ -1137,6 +1140,7 @@ function applyApiHistoryRecord(record) {
   $("#api-verify-tls").checked = profile.verify_tls !== false;
   $("#api-json-mode").checked = params.json_mode !== false;
   $("#api-stream").checked = params.stream !== false;
+  $("#api-split-image").checked = params.split_image === true;
   $("#remember-api-key").checked = record.remember_key !== false;
   parseExtraBodyField();
   syncProtocolFields();

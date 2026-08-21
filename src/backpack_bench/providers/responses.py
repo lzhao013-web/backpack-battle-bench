@@ -7,9 +7,11 @@ from typing import Any, cast
 from backpack_bench.providers.base import (
     ParsedCompletion,
     ParsedStreamEvent,
-    PromptImage,
+    PromptImageInput,
     effective_auth_mode,
     effective_endpoint,
+    normalize_prompt_images,
+    prompt_for_images,
 )
 from backpack_bench.schemas import ModelProfile
 
@@ -35,21 +37,25 @@ class OpenAIResponsesAdapter:
         self,
         profile: ModelProfile,
         prompt: str,
-        image: PromptImage | None = None,
+        image: PromptImageInput = None,
     ) -> dict[str, Any]:
         params = profile.params
+        images = normalize_prompt_images(image)
         input_value: str | list[dict[str, Any]] = prompt
-        if image is not None:
+        if images:
             input_value = [
                 {
                     "role": "user",
                     "content": [
-                        {"type": "input_text", "text": prompt},
-                        {
-                            "type": "input_image",
-                            "image_url": image.data_url(),
-                            "detail": "high",
-                        },
+                        {"type": "input_text", "text": prompt_for_images(prompt, images)},
+                        *[
+                            {
+                                "type": "input_image",
+                                "image_url": item.data_url(),
+                                "detail": "high",
+                            }
+                            for item in images
+                        ],
                     ],
                 }
             ]
